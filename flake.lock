@@ -1,0 +1,27 @@
+{
+  "nodes": {
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1738345203,
+        "narHash": "sha256-ORt3ilb/xV9GFR5zIL7leGewdlyRQYwFASg17B3FtRQ=",
+        "owner": "paveloom",
+        "repo": "nixpkgs",
+        "rev": "fc6691374704fb04cd38652fca162ca2324ddaf7",
+        "type": "github"
+      },
+      "original": {
+        "owner": "paveloom",
+        "ref": "system",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "nixpkgs": "nixpkgs"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}
