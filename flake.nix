@@ -21,6 +21,9 @@
             bashInteractive
             nixd
             nixfmt-rfc-style
+
+            zig_0_13
+            zls
           ];
         };
       });
