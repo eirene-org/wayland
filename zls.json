@@ -1,0 +1,7 @@
+{
+  "$schema": "https://raw.githubusercontent.com/zigtools/zls/refs/tags/0.13.0/schema.json",
+  "build_on_save_step": "check",
+  "enable_autofix": true,
+  "enable_build_on_save": true,
+  "warn_style": true
+}
