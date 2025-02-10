@@ -1,11 +1,50 @@
 const std = @import("std");
 
-fn getSocketPath(allocator: std.mem.Allocator) ![]const u8 {
-    const xdg_runtime_dir = std.posix.getenv("XDG_RUNTIME_DIR") orelse "/run/user/1000";
-    const name = std.posix.getenv("WAYLAND_DISPLAY") orelse "wayland-0";
+const Display = struct {
+    const OpCode = enum(u32) { sync, get_registry };
 
-    return std.fs.path.join(allocator, &.{ xdg_runtime_dir, name });
-}
+    fn request(wc: *WaylandClient, opCode: OpCode) !u32 {
+        const DISPLAY_ID = 1;
+
+        try wc.socket.writeAll(std.mem.sliceAsBytes(&[_]u32{
+            DISPLAY_ID,
+            0xC << 16 | @intFromEnum(opCode),
+            wc.id,
+        }));
+
+        wc.id += 1;
+        return wc.id;
+    }
+};
+
+const WaylandClient = struct {
+    socket: std.net.Stream,
+    id: u32,
+
+    const Self = @This();
+
+    fn getSocketPath(allocator: std.mem.Allocator) ![]const u8 {
+        const xdg_runtime_dir = std.posix.getenv("XDG_RUNTIME_DIR") orelse "/run/user/1000";
+        const name = std.posix.getenv("WAYLAND_DISPLAY") orelse "wayland-0";
+
+        return std.fs.path.join(allocator, &.{ xdg_runtime_dir, name });
+    }
+
+    fn connect(allocator: std.mem.Allocator) !Self {
+        const socketPath = try getSocketPath(allocator);
+        defer allocator.free(socketPath);
+
+        std.log.info("wayland socket path: {s}", .{socketPath});
+
+        const stream = try std.net.connectUnixSocket(socketPath);
+
+        return .{ .socket = stream, .id = 1 };
+    }
+
+    fn close(self: *Self) void {
+        self.socket.close();
+    }
+};
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -13,9 +52,9 @@ pub fn main() !void {
 
     const allocator = gpa.allocator();
 
-    const path = try getSocketPath(allocator);
-    defer allocator.free(path);
+    var wc = try WaylandClient.connect(allocator);
+    defer wc.close();
 
-    const stderr = std.io.getStdErr().writer();
-    stderr.print("wayland socket path: {s}\n", .{path}) catch {};
+    _ = try Display.request(&wc, .get_registry);
+    _ = try Display.request(&wc, .sync);
 }
