@@ -13,6 +13,11 @@ pub const Client = struct {
         return std.fs.path.join(allocator, &.{ xdg_runtime_dir, name });
     }
 
+    fn nextId(self: *Self) u32 {
+        self.id += 1;
+        return self.id;
+    }
+
     pub fn connect(allocator: std.mem.Allocator) !Self {
         const socketPath = try getSocketPath(allocator);
         defer allocator.free(socketPath);
@@ -27,21 +32,20 @@ pub const Client = struct {
     pub fn close(self: *Self) void {
         self.socket.close();
     }
+
+    fn request(self: *Self, values: []const u32) !void {
+        try self.socket.writeAll(std.mem.sliceAsBytes(values));
+    }
 };
 
 pub const Display = struct {
-    const OpCode = enum(u32) { sync, get_registry };
+    pub fn sync(wc: *Client) !void {
+        try wc.request(&.{ 1, 0xC << 16 | 0, wc.nextId() });
+    }
 
-    pub fn request(wc: *Client, opCode: OpCode) !u32 {
-        const DISPLAY_ID = 1;
-
-        try wc.socket.writeAll(std.mem.sliceAsBytes(&[_]u32{
-            DISPLAY_ID,
-            0xC << 16 | @intFromEnum(opCode),
-            wc.id,
-        }));
-
-        wc.id += 1;
-        return wc.id;
+    pub fn getRegistry(wc: *Client) !u32 {
+        const id = wc.nextId();
+        try wc.request(&.{ 1, 0xC << 16 | 1, id });
+        return id;
     }
 };
