@@ -12,5 +12,5 @@ pub fn main() !void {
     defer wc.close();
 
     _ = try wl.Display.getRegistry(&wc);
-    try wl.Display.sync(&wc);
+    _ = try wl.Display.sync(&wc);
 }

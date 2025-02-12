@@ -1,5 +1,22 @@
 const std = @import("std");
 
+fn Message(Payload: type) type {
+    const size = 8 + @sizeOf(Payload);
+
+    return packed struct {
+        id: u32,
+        size: u16 = size,
+        opcode: u16,
+        payload: Payload,
+
+        const Self = @This();
+
+        inline fn asBytes(self: *const Self) *const [size]u8 {
+            return @ptrCast(self);
+        }
+    };
+}
+
 pub const Client = struct {
     socket: std.net.Stream,
     id: u32,
@@ -33,19 +50,37 @@ pub const Client = struct {
         self.socket.close();
     }
 
-    fn request(self: *Self, values: []const u32) !void {
-        try self.socket.writeAll(std.mem.sliceAsBytes(values));
+    fn request(self: *Self, bytes: []const u8) !void {
+        try self.socket.writeAll(bytes);
     }
 };
 
 pub const Display = struct {
-    pub fn sync(wc: *Client) !void {
-        try wc.request(&.{ 1, 0xC << 16 | 0, wc.nextId() });
+    pub fn sync(wc: *Client) !u32 {
+        const Payload = packed struct { callback: u32 };
+        const callback = wc.nextId();
+
+        const message = Message(Payload){
+            .id = 1,
+            .opcode = 0,
+            .payload = .{ .callback = callback },
+        };
+        try wc.request(message.asBytes());
+
+        return callback;
     }
 
     pub fn getRegistry(wc: *Client) !u32 {
-        const id = wc.nextId();
-        try wc.request(&.{ 1, 0xC << 16 | 1, id });
-        return id;
+        const Payload = packed struct { registry: u32 };
+        const registry = wc.nextId();
+
+        const message = Message(Payload){
+            .id = 1,
+            .opcode = 1,
+            .payload = .{ .registry = registry },
+        };
+        try wc.request(message.asBytes());
+
+        return registry;
     }
 };
