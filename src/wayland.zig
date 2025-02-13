@@ -46,11 +46,11 @@ pub const Client = struct {
         return .{ .socket = stream, .id = 1 };
     }
 
-    pub fn close(self: *Self) void {
+    pub fn close(self: *const Self) void {
         self.socket.close();
     }
 
-    fn request(self: *Self, bytes: []const u8) !void {
+    fn request(self: *const Self, bytes: []const u8) !void {
         try self.socket.writeAll(bytes);
     }
 };
