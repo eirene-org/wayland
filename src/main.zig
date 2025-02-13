@@ -13,4 +13,8 @@ pub fn main() !void {
 
     _ = try wl.Display.getRegistry(&wc);
     _ = try wl.Display.sync(&wc);
+
+    var buffer: [100]u8 = undefined;
+    const read = try wc.socket.readAll(&buffer);
+    std.debug.print("read: {d}\nbuffer: {b}\n", .{ read, buffer });
 }
