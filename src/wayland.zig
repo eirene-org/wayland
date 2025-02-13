@@ -23,7 +23,7 @@ fn Message(Payload: type) type {
 
 pub const Client = struct {
     socket: std.net.Stream,
-    id: u32,
+    id: u32 = 0,
 
     display: Display = .{},
 
@@ -49,7 +49,7 @@ pub const Client = struct {
 
         const stream = try std.net.connectUnixSocket(socketPath);
 
-        return .{ .socket = stream, .id = 1 };
+        return .{ .socket = stream };
     }
 
     pub fn close(self: *const Self) void {
