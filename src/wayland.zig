@@ -3,10 +3,14 @@ const std = @import("std");
 fn Message(Payload: type) type {
     const size = 8 + @sizeOf(Payload);
 
-    return packed struct {
+    const Header = packed struct {
         id: u32,
         size: u16 = size,
         opcode: u16,
+    };
+
+    return packed struct {
+        header: Header,
         payload: Payload,
 
         const Self = @This();
@@ -67,8 +71,7 @@ const Display = struct {
         const callback = client.nextId();
 
         const message = Message(Payload){
-            .id = 1,
-            .opcode = 0,
+            .header = .{ .id = 1, .opcode = 0 },
             .payload = .{ .callback = callback },
         };
         try client.request(message.asBytes());
@@ -83,8 +86,7 @@ const Display = struct {
         const registry = client.nextId();
 
         const message = Message(Payload){
-            .id = 1,
-            .opcode = 1,
+            .header = .{ .id = 1, .opcode = 1 },
             .payload = .{ .registry = registry },
         };
         try client.request(message.asBytes());
