@@ -11,8 +11,8 @@ pub fn main() !void {
     var wc = try wl.Client.connect(allocator);
     defer wc.close();
 
-    _ = try wl.Display.getRegistry(&wc);
-    _ = try wl.Display.sync(&wc);
+    _ = try wc.display.getRegistry();
+    _ = try wc.display.sync();
 
     var buffer: [100]u8 = undefined;
     const read = try wc.socket.readAll(&buffer);

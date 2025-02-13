@@ -21,6 +21,8 @@ pub const Client = struct {
     socket: std.net.Stream,
     id: u32,
 
+    display: Display = .{},
+
     const Self = @This();
 
     fn getSocketPath(allocator: std.mem.Allocator) ![]const u8 {
@@ -55,31 +57,37 @@ pub const Client = struct {
     }
 };
 
-pub const Display = struct {
-    pub fn sync(wc: *Client) !u32 {
+const Display = struct {
+    const Self = @This();
+
+    pub fn sync(self: *Self) !u32 {
+        const client: *Client = @alignCast(@fieldParentPtr("display", self));
+
         const Payload = packed struct { callback: u32 };
-        const callback = wc.nextId();
+        const callback = client.nextId();
 
         const message = Message(Payload){
             .id = 1,
             .opcode = 0,
             .payload = .{ .callback = callback },
         };
-        try wc.request(message.asBytes());
+        try client.request(message.asBytes());
 
         return callback;
     }
 
-    pub fn getRegistry(wc: *Client) !u32 {
+    pub fn getRegistry(self: *Self) !u32 {
+        const client: *Client = @alignCast(@fieldParentPtr("display", self));
+
         const Payload = packed struct { registry: u32 };
-        const registry = wc.nextId();
+        const registry = client.nextId();
 
         const message = Message(Payload){
             .id = 1,
             .opcode = 1,
             .payload = .{ .registry = registry },
         };
-        try wc.request(message.asBytes());
+        try client.request(message.asBytes());
 
         return registry;
     }
