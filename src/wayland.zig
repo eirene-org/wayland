@@ -18,6 +18,12 @@ fn Message(Payload: type) type {
         inline fn asBytes(self: *const Self) *const [size]u8 {
             return @ptrCast(self);
         }
+
+        pub fn read(client: *Client) !Self {
+            var self: Self = undefined;
+            _ = try client.socket.readAll(std.mem.asBytes(&self));
+            return self;
+        }
     };
 }
 
