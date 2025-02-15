@@ -23,7 +23,7 @@ fn Message(Payload: type) type {
 
 pub const Client = struct {
     socket: std.net.Stream,
-    id: u32 = 0,
+    id: u32 = 1,
 
     display: Display = .{},
 
