@@ -2,19 +2,25 @@ const std = @import("std");
 
 const wl = @import("wayland.zig");
 
+fn onRegistryMessage() void {
+    std.debug.print("got a message from the registry object\n", .{});
+}
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
 
     const allocator = gpa.allocator();
 
-    var wc = try wl.Client.connect(allocator);
+    var wc = wl.Client.init(allocator);
     defer wc.close();
 
-    _ = try wc.display.getRegistry();
+    try wc.connect();
+
+    const registry = try wc.display.getRegistry();
     _ = try wc.display.sync();
 
-    var buffer: [100]u8 = undefined;
-    const read = try wc.socket.readAll(&buffer);
-    std.debug.print("read: {d}\nbuffer: {b}\n", .{ read, buffer });
+    wc.setEventListener(wl.Registry, registry, onRegistryMessage);
+
+    try wc.dispatchMessage();
 }
