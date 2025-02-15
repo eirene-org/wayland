@@ -1,19 +1,19 @@
 const std = @import("std");
 
+pub const Header = packed struct {
+    id: u32,
+    opcode: u16,
+    size: u16,
+};
+
 fn Message(Payload: type) type {
-    const size = 8 + @sizeOf(Payload);
-
-    const Header = packed struct {
-        id: u32,
-        size: u16 = size,
-        opcode: u16,
-    };
-
     return packed struct {
         header: Header,
         payload: Payload,
 
         const Self = @This();
+
+        const size = @sizeOf(Header) + @sizeOf(Payload);
 
         inline fn asBytes(self: *const Self) *const [size]u8 {
             return @ptrCast(self);
@@ -71,7 +71,7 @@ const Display = struct {
         const callback = client.nextId();
 
         const message = Message(Payload){
-            .header = .{ .id = 1, .opcode = 0 },
+            .header = .{ .id = 1, .size = Message(Payload).size, .opcode = 0 },
             .payload = .{ .callback = callback },
         };
         try client.request(message.asBytes());
@@ -86,7 +86,7 @@ const Display = struct {
         const registry = client.nextId();
 
         const message = Message(Payload){
-            .header = .{ .id = 1, .opcode = 1 },
+            .header = .{ .id = 1, .size = Message(Payload).size, .opcode = 1 },
             .payload = .{ .registry = registry },
         };
         try client.request(message.asBytes());
