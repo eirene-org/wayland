@@ -70,7 +70,11 @@ pub const Client = struct {
 const Display = struct {
     const Self = @This();
 
-    pub fn sync(self: *Self) !u32 {
+    const ID = enum(u32) {
+        _,
+    };
+
+    pub fn sync(self: *Self) !Callback.ID {
         const client: *Client = @alignCast(@fieldParentPtr("display", self));
 
         const Payload = packed struct { callback: u32 };
@@ -82,10 +86,10 @@ const Display = struct {
         };
         try client.request(message.asBytes());
 
-        return callback;
+        return @enumFromInt(callback);
     }
 
-    pub fn getRegistry(self: *Self) !u32 {
+    pub fn getRegistry(self: *Self) !Registry.ID {
         const client: *Client = @alignCast(@fieldParentPtr("display", self));
 
         const Payload = packed struct { registry: u32 };
@@ -97,6 +101,18 @@ const Display = struct {
         };
         try client.request(message.asBytes());
 
-        return registry;
+        return @enumFromInt(registry);
     }
+};
+
+const Callback = struct {
+    const ID = enum(u32) {
+        _,
+    };
+};
+
+const Registry = struct {
+    const ID = enum(u32) {
+        _,
+    };
 };
