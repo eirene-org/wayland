@@ -42,12 +42,12 @@ pub const Client = struct {
     allocator: std.mem.Allocator,
     socket: std.net.Stream = undefined,
 
+    display: Display = @enumFromInt(@intFromEnum(Object.display)),
+
     next_id: u32 = 2,
     objects: std.AutoArrayHashMap(Object, ObjectInfo),
 
     buffer: [std.math.maxInt(u16)]u8 = undefined,
-
-    display: Display = .{},
 
     const Self = @This();
 
@@ -87,7 +87,7 @@ pub const Client = struct {
         return id;
     }
 
-    pub fn setEventListener(self: *Self, ObjectI: type, object: ObjectI.ID, eventListener: EventListener) void {
+    pub fn setEventListener(self: *Self, Interface: type, object: Interface, eventListener: EventListener) void {
         if (self.objects.getPtr(@enumFromInt(@intFromEnum(object)))) |objectInfo| {
             objectInfo.eventListener = eventListener;
         } else {
@@ -123,14 +123,12 @@ pub const Client = struct {
     }
 };
 
-const Display = struct {
+const Display = enum(u32) {
+    _,
+
     const Self = @This();
 
-    const ID = enum(u32) {
-        _,
-    };
-
-    pub fn sync(self: *Self) !Callback.ID {
+    pub fn sync(self: *Self) !Callback {
         const client: *Client = @alignCast(@fieldParentPtr("display", self));
 
         const Payload = packed struct { callback: Object };
@@ -145,7 +143,7 @@ const Display = struct {
         return @enumFromInt(@intFromEnum(callback));
     }
 
-    pub fn getRegistry(self: *Self) !Registry.ID {
+    pub fn getRegistry(self: *Self) !Registry {
         const client: *Client = @alignCast(@fieldParentPtr("display", self));
 
         const Payload = packed struct { registry: Object };
@@ -161,14 +159,10 @@ const Display = struct {
     }
 };
 
-pub const Callback = struct {
-    const ID = enum(u32) {
-        _,
-    };
+pub const Callback = enum(u32) {
+    _,
 };
 
-pub const Registry = struct {
-    const ID = enum(u32) {
-        _,
-    };
+pub const Registry = enum(u32) {
+    _,
 };
