@@ -2,8 +2,14 @@ const std = @import("std");
 
 const wl = @import("wayland.zig");
 
-fn onRegistryMessage() void {
-    std.debug.print("got a message from the registry object\n", .{});
+fn onRegistryMessage(event: wl.Registry.Event, buffer: []const u8) void {
+    _ = buffer; // autofix
+
+    switch (event) {
+        .global => {
+            std.debug.print("event: {}\n", .{event});
+        },
+    }
 }
 
 pub fn main() !void {

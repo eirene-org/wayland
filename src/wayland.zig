@@ -5,7 +5,7 @@ const Object = enum(u32) {
     _,
 };
 
-const EventListener = ?*const fn () void;
+const EventListener = ?*const fn (event: u32, buffer: []const u8) void;
 
 const ObjectInfo = struct {
     eventListener: EventListener,
@@ -87,31 +87,42 @@ pub const Client = struct {
         return id;
     }
 
-    pub fn setEventListener(self: *Self, Interface: type, object: Interface, eventListener: EventListener) void {
+    pub fn setEventListener(
+        self: *Self,
+        Interface: type,
+        object: Interface,
+        comptime eventListener: *const fn (event: Interface.Event, buffer: []const u8) void,
+    ) void {
         if (self.objects.getPtr(@enumFromInt(@intFromEnum(object)))) |objectInfo| {
-            objectInfo.eventListener = eventListener;
+            const Wrapper = struct {
+                fn wrappedEventListener(opcode: u32, buffer: []const u8) void {
+                    const event: Interface.Event = @enumFromInt(opcode);
+                    eventListener(event, buffer);
+                }
+            };
+            objectInfo.eventListener = Wrapper.wrappedEventListener;
         } else {
             std.log.warn("there is no object with id {d}", .{object});
         }
     }
 
     pub fn dispatchMessage(self: *Self) !void {
-        const header_size = @sizeOf(Header);
-        const bytes_read = try self.socket.readAll(self.buffer[0..header_size]);
+        const header_slice = self.buffer[0..@sizeOf(Header)];
+        const bytes_read = try self.socket.readAll(header_slice);
 
-        if (bytes_read < header_size) {
+        if (bytes_read < @sizeOf(Header)) {
             return error.EOF;
         }
 
-        const header: *const Header = @ptrCast(@alignCast(self.buffer[0..header_size]));
-        std.debug.print("header: {}\n", .{header});
+        const header: *const Header = @ptrCast(@alignCast(header_slice));
 
         if (self.objects.get(header.id)) |objectInfo| {
             if (objectInfo.eventListener) |eventListener| {
-                _ = try self.socket.readAll(self.buffer[header_size..header.size]);
-                std.debug.print("buffer: {b:0>8}\n", .{self.buffer[0..header.size]});
+                const payload_slice = self.buffer[@sizeOf(Header)..header.size];
+                _ = try self.socket.readAll(payload_slice);
 
-                eventListener();
+                const message_slice = self.buffer[0..header.size];
+                eventListener(header.opcode, message_slice);
             }
         } else {
             std.log.warn("unknown id: {d}", .{header.id});
@@ -165,4 +176,8 @@ pub const Callback = enum(u32) {
 
 pub const Registry = enum(u32) {
     _,
+
+    pub const Event = enum(u32) {
+        global,
+    };
 };
