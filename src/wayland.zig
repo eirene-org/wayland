@@ -1,52 +1,28 @@
 const std = @import("std");
 
-const Object = enum(u32) {
-    display = 1,
-    _,
-};
+const wire = @import("wire.zig");
 
-const EventListener = ?*const fn (event: u32, buffer: []const u8) void;
+const EventListener = ?*const fn (event: wire.Word, buffer: []const u8) void;
 
 const ObjectInfo = struct {
     eventListener: EventListener,
 };
 
-pub const Header = packed struct {
-    id: Object,
-    opcode: u16,
-    size: u16,
-};
-
-fn Message(Payload: type) type {
-    return packed struct {
-        header: Header,
-        payload: Payload,
-
-        const Self = @This();
-
-        const size = @sizeOf(Header) + @sizeOf(Payload);
-
-        inline fn asBytes(self: *const Self) *const [size]u8 {
-            return @ptrCast(self);
-        }
-    };
-}
-
 pub const Client = struct {
     allocator: std.mem.Allocator,
     socket: std.net.Stream = undefined,
 
-    display: Display = @enumFromInt(@intFromEnum(Object.display)),
+    display: Display = @enumFromInt(@intFromEnum(wire.Object.display)),
 
     next_id: u32 = 2,
-    objects: std.AutoArrayHashMap(Object, ObjectInfo),
+    objects: std.AutoArrayHashMap(wire.Object, ObjectInfo),
 
     buffer: [std.math.maxInt(u16)]u8 = undefined,
 
     const Self = @This();
 
     pub fn init(allocator: std.mem.Allocator) Self {
-        const objects = std.AutoArrayHashMap(Object, ObjectInfo).init(allocator);
+        const objects = std.AutoArrayHashMap(wire.Object, ObjectInfo).init(allocator);
         return .{ .allocator = allocator, .objects = objects };
     }
 
@@ -71,8 +47,8 @@ pub const Client = struct {
         self.socket.close();
     }
 
-    fn newObject(self: *Self) !Object {
-        const id: Object = @enumFromInt(self.next_id);
+    fn newObject(self: *Self) !wire.Object {
+        const id: wire.Object = @enumFromInt(self.next_id);
         self.next_id += 1;
 
         const objectInfo = ObjectInfo{ .eventListener = null };
@@ -101,18 +77,18 @@ pub const Client = struct {
     }
 
     pub fn dispatchMessage(self: *Self) !void {
-        const header_slice = self.buffer[0..@sizeOf(Header)];
+        const header_slice = self.buffer[0..@sizeOf(wire.Header)];
         const bytes_read = try self.socket.readAll(header_slice);
 
-        if (bytes_read < @sizeOf(Header)) {
+        if (bytes_read < @sizeOf(wire.Header)) {
             return error.EOF;
         }
 
-        const header: *const Header = @ptrCast(@alignCast(header_slice));
+        const header: *const wire.Header = @ptrCast(@alignCast(header_slice));
 
         if (self.objects.get(header.id)) |objectInfo| {
             if (objectInfo.eventListener) |eventListener| {
-                const payload_slice = self.buffer[@sizeOf(Header)..header.size];
+                const payload_slice = self.buffer[@sizeOf(wire.Header)..header.size];
                 _ = try self.socket.readAll(payload_slice);
 
                 const message_slice = self.buffer[0..header.size];
@@ -128,7 +104,7 @@ pub const Client = struct {
     }
 };
 
-const Display = enum(u32) {
+const Display = enum(wire.Word) {
     _,
 
     const Self = @This();
@@ -136,11 +112,11 @@ const Display = enum(u32) {
     pub fn sync(self: *Self) !Callback {
         const client: *Client = @alignCast(@fieldParentPtr("display", self));
 
-        const Payload = packed struct { callback: Object };
+        const Payload = packed struct { callback: wire.Object };
         const callback = try client.newObject();
 
-        const message = Message(Payload){
-            .header = .{ .id = .display, .size = Message(Payload).size, .opcode = 0 },
+        const message = wire.Message(Payload){
+            .header = .{ .id = .display, .size = wire.Message(Payload).size, .opcode = 0 },
             .payload = .{ .callback = callback },
         };
         try client.request(message.asBytes());
@@ -151,11 +127,11 @@ const Display = enum(u32) {
     pub fn getRegistry(self: *Self) !Registry {
         const client: *Client = @alignCast(@fieldParentPtr("display", self));
 
-        const Payload = packed struct { registry: Object };
+        const Payload = packed struct { registry: wire.Object };
         const registry = try client.newObject();
 
-        const message = Message(Payload){
-            .header = .{ .id = .display, .size = Message(Payload).size, .opcode = 1 },
+        const message = wire.Message(Payload){
+            .header = .{ .id = .display, .size = wire.Message(Payload).size, .opcode = 1 },
             .payload = .{ .registry = registry },
         };
         try client.request(message.asBytes());
@@ -164,14 +140,20 @@ const Display = enum(u32) {
     }
 };
 
-pub const Callback = enum(u32) {
+pub const Callback = enum(wire.Word) {
     _,
 };
 
-pub const Registry = enum(u32) {
+pub const Registry = enum(wire.Word) {
     _,
 
-    pub const Event = enum(u32) {
+    pub const Event = enum(wire.Word) {
         global,
+
+        pub const Global = wire.Message(struct {
+            name: wire.UInt,
+            interface: wire.String,
+            version: wire.UInt,
+        });
     };
 };
