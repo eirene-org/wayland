@@ -4,6 +4,11 @@ pub const Word = u32;
 
 pub const UInt = Word;
 
+fn serializeUInt(buffer: []u8, offset: *u16, uint: UInt) void {
+    std.mem.copyForwards(u8, buffer[offset.*..], std.mem.asBytes(&uint));
+    offset.* += @sizeOf(UInt);
+}
+
 fn deserializeUInt(buffer: []const u8, offset: *u16) UInt {
     const uint = std.mem.bytesToValue(UInt, buffer[offset.*..][0..@sizeOf(Word)]);
     offset.* += @sizeOf(UInt);
@@ -28,10 +33,19 @@ pub const Object = enum(Word) {
     _,
 };
 
+fn serializeObject(buffer: []u8, offset: *u16, object: Object) void {
+    serializeUInt(buffer, offset, @intFromEnum(object));
+}
+
 pub const Header = packed struct {
     id: Object,
     opcode: u16,
-    size: u16,
+    size: u16 = undefined,
+
+    fn serialize(self: *const Header, buffer: []u8, offset: *u16) void {
+        std.mem.copyForwards(u8, buffer[offset.*..], std.mem.asBytes(self));
+        offset.* += @sizeOf(Header);
+    }
 };
 
 pub fn Message(Payload: type) type {
@@ -41,10 +55,37 @@ pub fn Message(Payload: type) type {
 
         const Self = @This();
 
-        pub const size = @sizeOf(Header) + @sizeOf(Payload);
+        pub fn computeSize(self: *Self) void {
+            var size: u16 = @sizeOf(Header);
 
-        pub inline fn asBytes(self: *const Self) *const [size]u8 {
-            return @ptrCast(self);
+            inline for (std.meta.fields(Payload)) |field| {
+                switch (field.type) {
+                    UInt,
+                    Object,
+                    => size += @sizeOf(Word),
+                    else => {},
+                }
+            }
+
+            self.header.size = size;
+        }
+
+        pub fn serialize(self: *const Self, allocator: std.mem.Allocator) ![]const u8 {
+            const buffer = try allocator.alloc(u8, self.header.size);
+
+            var offset: u16 = 0;
+            self.header.serialize(buffer, &offset);
+
+            const payload = &self.payload;
+            inline for (std.meta.fields(Payload)) |field| {
+                switch (field.type) {
+                    UInt => serializeUInt(buffer, &offset, @field(payload, field.name)),
+                    Object => serializeObject(buffer, &offset, @field(payload, field.name)),
+                    else => {},
+                }
+            }
+
+            return buffer;
         }
 
         pub fn deserialize(buffer: []const u8) Self {

@@ -109,17 +109,34 @@ const Display = enum(wire.Word) {
 
     const Self = @This();
 
+    pub const Request = enum(wire.Word) {
+        sync,
+        get_registry,
+
+        pub const Sync = wire.Message(packed struct {
+            callback: wire.Object,
+        });
+
+        pub const GetRegistry = wire.Message(packed struct {
+            registry: wire.Object,
+        });
+    };
+
     pub fn sync(self: *Self) !Callback {
         const client: *Client = @alignCast(@fieldParentPtr("display", self));
 
-        const Payload = packed struct { callback: wire.Object };
         const callback = try client.newObject();
 
-        const message = wire.Message(Payload){
-            .header = .{ .id = .display, .size = wire.Message(Payload).size, .opcode = 0 },
+        var message = Request.Sync{
+            .header = .{ .id = .display, .opcode = 0 },
             .payload = .{ .callback = callback },
         };
-        try client.request(message.asBytes());
+        message.computeSize();
+
+        const messageBytes = try message.serialize(client.allocator);
+        defer client.allocator.free(messageBytes);
+
+        try client.request(messageBytes);
 
         return @enumFromInt(@intFromEnum(callback));
     }
@@ -127,14 +144,18 @@ const Display = enum(wire.Word) {
     pub fn getRegistry(self: *Self) !Registry {
         const client: *Client = @alignCast(@fieldParentPtr("display", self));
 
-        const Payload = packed struct { registry: wire.Object };
         const registry = try client.newObject();
 
-        const message = wire.Message(Payload){
-            .header = .{ .id = .display, .size = wire.Message(Payload).size, .opcode = 1 },
+        var message = Request.GetRegistry{
+            .header = .{ .id = .display, .opcode = 1 },
             .payload = .{ .registry = registry },
         };
-        try client.request(message.asBytes());
+        message.computeSize();
+
+        const messageBytes = try message.serialize(client.allocator);
+        defer client.allocator.free(messageBytes);
+
+        try client.request(messageBytes);
 
         return @enumFromInt(@intFromEnum(registry));
     }
