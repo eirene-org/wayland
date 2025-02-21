@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const wc = @import("client.zig");
 const wl = @import("wayland.zig");
 
 fn onRegistryMessage(event: wl.Registry.Event, buffer: []const u8) void {
@@ -20,15 +21,15 @@ pub fn main() !void {
 
     const allocator = gpa.allocator();
 
-    var wc = wl.Client.init(allocator);
-    defer wc.close();
+    var client = wc.Client.init(allocator);
+    defer client.close();
 
-    try wc.connect();
+    try client.connect();
 
-    const registry = try wc.display.getRegistry();
-    _ = try wc.display.sync();
+    const registry = try wl.display.getRegistry(&client);
+    _ = try wl.display.sync(&client);
 
-    wc.setEventListener(wl.Registry, registry, onRegistryMessage);
+    client.setEventListener(wl.Registry, registry, onRegistryMessage);
 
-    try wc.dispatchMessage();
+    try client.dispatchMessage();
 }
