@@ -3,26 +3,29 @@ const std = @import("std");
 const wl = @import("wayland.zig");
 const wire = @import("wire.zig");
 
-const EventListener = ?*const fn (event: wire.Word, buffer: []const u8) void;
-
-const ObjectInfo = struct {
-    eventListener: EventListener,
+const EventId = struct {
+    object: wire.Object,
+    opcode: wire.Opcode,
 };
+
+const EventListener = *const fn (buffer: []const u8) void;
+
+const EventListeners = std.AutoArrayHashMap(EventId, EventListener);
 
 pub const Client = struct {
     allocator: std.mem.Allocator,
     socket: std.net.Stream = undefined,
 
     next_id: u32 = 2,
-    objects: std.AutoArrayHashMap(wire.Object, ObjectInfo),
+    eventListeners: EventListeners,
 
     buffer: [std.math.maxInt(u16)]u8 = undefined,
 
     const Self = @This();
 
     pub fn init(allocator: std.mem.Allocator) Self {
-        const objects = std.AutoArrayHashMap(wire.Object, ObjectInfo).init(allocator);
-        return .{ .allocator = allocator, .objects = objects };
+        const eventListeners = EventListeners.init(allocator);
+        return .{ .allocator = allocator, .eventListeners = eventListeners };
     }
 
     fn getSocketPath(allocator: std.mem.Allocator) ![]const u8 {
@@ -42,7 +45,7 @@ pub const Client = struct {
     }
 
     pub fn close(self: *Self) void {
-        self.objects.deinit();
+        self.eventListeners.deinit();
         self.socket.close();
     }
 
@@ -50,29 +53,28 @@ pub const Client = struct {
         const id: wire.Object = @enumFromInt(self.next_id);
         self.next_id += 1;
 
-        const objectInfo = ObjectInfo{ .eventListener = null };
-        try self.objects.put(id, objectInfo);
-
         return id;
     }
 
     pub fn setEventListener(
         self: *Self,
-        Interface: type,
-        object: Interface,
-        comptime eventListener: *const fn (event: Interface.Event, buffer: []const u8) void,
-    ) void {
-        if (self.objects.getPtr(@enumFromInt(@intFromEnum(object)))) |objectInfo| {
-            const Wrapper = struct {
-                fn wrappedEventListener(opcode: u32, buffer: []const u8) void {
-                    const event: Interface.Event = @enumFromInt(opcode);
-                    eventListener(event, buffer);
-                }
-            };
-            objectInfo.eventListener = Wrapper.wrappedEventListener;
-        } else {
-            std.log.warn("there is no object with id {d}", .{object});
-        }
+        Payload: type,
+        object: Payload.Interface,
+        comptime eventListener: *const fn (payload: Payload) void,
+    ) !void {
+        const eventId = EventId{
+            .object = @enumFromInt(@intFromEnum(object)),
+            .opcode = Payload.Opcode,
+        };
+
+        const Wrapper = struct {
+            fn wrappedEventListener(buffer: []const u8) void {
+                const Message = wire.Message(Payload);
+                const message = Message.deserialize(buffer);
+                eventListener(message.payload);
+            }
+        };
+        try self.eventListeners.put(eventId, Wrapper.wrappedEventListener);
     }
 
     pub fn dispatchMessage(self: *Self) !void {
@@ -85,17 +87,14 @@ pub const Client = struct {
 
         const header: *const wire.Header = @ptrCast(@alignCast(header_slice));
 
-        if (self.objects.get(header.id)) |objectInfo| {
-            if (objectInfo.eventListener) |eventListener| {
-                const payload_slice = self.buffer[@sizeOf(wire.Header)..header.size];
-                _ = try self.socket.readAll(payload_slice);
+        const eventId = EventId{ .object = header.id, .opcode = header.opcode };
+        const eventListener = self.eventListeners.get(eventId) orelse return;
 
-                const message_slice = self.buffer[0..header.size];
-                eventListener(header.opcode, message_slice);
-            }
-        } else {
-            std.log.warn("unknown id: {d}", .{header.id});
-        }
+        const payload_slice = self.buffer[@sizeOf(wire.Header)..header.size];
+        _ = try self.socket.readAll(payload_slice);
+
+        const message_slice = self.buffer[0..header.size];
+        eventListener(message_slice);
     }
 
     pub fn request(self: *const Self, bytes: []const u8) !void {

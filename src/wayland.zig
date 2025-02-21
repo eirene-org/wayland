@@ -63,13 +63,16 @@ pub const Callback = enum(wire.Word) {
 pub const Registry = enum(wire.Word) {
     _,
 
-    pub const Event = enum(wire.Word) {
-        global,
+    pub const Event = union(enum) {
+        global: Event.Global,
 
-        pub const Global = wire.Message(struct {
+        pub const Global = struct {
             name: wire.UInt,
             interface: wire.String,
             version: wire.UInt,
-        });
+
+            pub const Interface = Registry;
+            pub const Opcode = 0;
+        };
     };
 };
