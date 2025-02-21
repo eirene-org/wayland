@@ -55,7 +55,13 @@ pub fn Message(Payload: type) type {
 
         const Self = @This();
 
-        pub fn computeSize(self: *Self) void {
+        pub fn init(header: Header, payload: Payload) Self {
+            var self = Self{ .header = header, .payload = payload };
+            self.computeSize();
+            return self;
+        }
+
+        fn computeSize(self: *Self) void {
             var size: u16 = @sizeOf(Header);
 
             inline for (std.meta.fields(Payload)) |field| {

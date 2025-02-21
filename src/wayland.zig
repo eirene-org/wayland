@@ -127,11 +127,10 @@ const Display = enum(wire.Word) {
 
         const callback = try client.newObject();
 
-        var message = Request.Sync{
-            .header = .{ .id = .display, .opcode = 0 },
-            .payload = .{ .callback = callback },
-        };
-        message.computeSize();
+        var message = Request.Sync.init(
+            .{ .id = .display, .opcode = 0 },
+            .{ .callback = callback },
+        );
 
         const messageBytes = try message.serialize(client.allocator);
         defer client.allocator.free(messageBytes);
@@ -146,11 +145,10 @@ const Display = enum(wire.Word) {
 
         const registry = try client.newObject();
 
-        var message = Request.GetRegistry{
-            .header = .{ .id = .display, .opcode = 1 },
-            .payload = .{ .registry = registry },
-        };
-        message.computeSize();
+        var message = Request.GetRegistry.init(
+            .{ .id = .display, .opcode = 1 },
+            .{ .registry = registry },
+        );
 
         const messageBytes = try message.serialize(client.allocator);
         defer client.allocator.free(messageBytes);
