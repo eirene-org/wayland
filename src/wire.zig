@@ -1,5 +1,7 @@
 const std = @import("std");
 
+pub const HalfWord = u16;
+
 pub const Word = u32;
 
 pub const UInt = Word;
@@ -37,10 +39,13 @@ fn serializeObject(buffer: []u8, offset: *u16, object: Object) void {
     serializeUInt(buffer, offset, @intFromEnum(object));
 }
 
+pub const Opcode = HalfWord;
+pub const Size = HalfWord;
+
 pub const Header = packed struct {
     id: Object,
-    opcode: u16,
-    size: u16 = undefined,
+    opcode: Opcode,
+    size: Size = undefined,
 
     fn serialize(self: *const Header, buffer: []u8, offset: *u16) void {
         std.mem.copyForwards(u8, buffer[offset.*..], std.mem.asBytes(self));
