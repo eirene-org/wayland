@@ -8,7 +8,16 @@ const EventId = struct {
     opcode: wire.Opcode,
 };
 
-const EventListener = *const fn (buffer: []const u8) void;
+const EventListener = struct {
+    callback: *const fn (buffer: []const u8, userdata: ?*anyopaque) void,
+    userdata: ?*anyopaque,
+
+    const Self = @This();
+
+    fn call(self: *const Self, buffer: []const u8) void {
+        self.callback(buffer, self.userdata);
+    }
+};
 
 const EventListeners = std.AutoArrayHashMap(EventId, EventListener);
 
@@ -60,7 +69,8 @@ pub const Client = struct {
         self: *Self,
         Payload: type,
         object: Payload.Interface,
-        comptime eventListener: *const fn (payload: Payload) void,
+        comptime callback: *const fn (payload: Payload, userdata: ?*anyopaque) void,
+        userdata: ?*anyopaque,
     ) !void {
         const eventId = EventId{
             .object = @enumFromInt(@intFromEnum(object)),
@@ -68,13 +78,19 @@ pub const Client = struct {
         };
 
         const Wrapper = struct {
-            fn wrappedEventListener(buffer: []const u8) void {
+            fn wrappedCallback(buffer: []const u8, _userdata: ?*anyopaque) void {
                 const Message = wire.Message(Payload);
                 const message = Message.deserialize(buffer);
-                eventListener(message.payload);
+
+                callback(message.payload, _userdata);
             }
         };
-        try self.eventListeners.put(eventId, Wrapper.wrappedEventListener);
+
+        const eventListener = EventListener{
+            .callback = Wrapper.wrappedCallback,
+            .userdata = userdata,
+        };
+        try self.eventListeners.put(eventId, eventListener);
     }
 
     pub fn dispatchMessage(self: *Self) !void {
@@ -94,7 +110,7 @@ pub const Client = struct {
         _ = try self.socket.readAll(payload_slice);
 
         const message_slice = self.buffer[0..header.size];
-        eventListener(message_slice);
+        eventListener.call(message_slice);
     }
 
     pub fn request(self: *const Self, bytes: []const u8) !void {

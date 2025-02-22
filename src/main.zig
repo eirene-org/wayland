@@ -3,7 +3,9 @@ const std = @import("std");
 const wc = @import("client.zig");
 const wl = @import("wayland.zig");
 
-fn onRegistryGlobalEvent(payload: wl.Registry.Event.Global) void {
+fn onRegistryGlobalEvent(payload: wl.Registry.Event.Global, userdata: ?*anyopaque) void {
+    _ = userdata;
+
     std.debug.print("global: {}\n", .{payload});
     std.debug.print("message: name: {d}\n", .{payload.name});
     std.debug.print("message: interface: {s}\n", .{payload.interface});
@@ -24,7 +26,7 @@ pub fn main() !void {
     const registry = try wl.display.getRegistry(&client);
     _ = try wl.display.sync(&client);
 
-    try client.setEventListener(wl.Registry.Event.Global, registry, onRegistryGlobalEvent);
+    try client.setEventListener(wl.Registry.Event.Global, registry, onRegistryGlobalEvent, null);
 
     try client.dispatchMessage();
 }
