@@ -6,10 +6,14 @@ const wl = @import("wayland.zig");
 fn onRegistryGlobalEvent(payload: wl.Registry.Event.Global, userdata: ?*anyopaque) void {
     _ = userdata;
 
-    std.debug.print("global: {}\n", .{payload});
-    std.debug.print("message: name: {d}\n", .{payload.name});
-    std.debug.print("message: interface: {s}\n", .{payload.interface});
-    std.debug.print("message: version: {d}\n", .{payload.version});
+    std.debug.print("{}\t{}\t{s}\n", .{ payload.name, payload.version, payload.interface });
+}
+
+fn onCallbackDoneEvent(payload: wl.Callback.Event.Done, userdata: ?*anyopaque) void {
+    _ = payload;
+
+    const registration_done: *bool = @ptrCast(userdata.?);
+    registration_done.* = true;
 }
 
 pub fn main() !void {
@@ -24,9 +28,15 @@ pub fn main() !void {
     try client.connect();
 
     const registry = try wl.display.getRegistry(&client);
-    _ = try wl.display.sync(&client);
+    const callback = try wl.display.sync(&client);
 
     try client.setEventListener(wl.Registry.Event.Global, registry, onRegistryGlobalEvent, null);
 
-    try client.dispatchMessage();
+    var registration_done = false;
+    try client.setEventListener(wl.Callback.Event.Done, callback, onCallbackDoneEvent, &registration_done);
+
+    std.debug.print("name\tversion\tinterface\n", .{});
+    while (!registration_done) {
+        try client.dispatchMessage();
+    }
 }

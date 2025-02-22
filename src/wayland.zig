@@ -58,6 +58,17 @@ pub const display: Display = @enumFromInt(@intFromEnum(wire.Object.display));
 
 pub const Callback = enum(wire.Word) {
     _,
+
+    pub const Event = union(enum) {
+        done: Event.Done,
+
+        pub const Done = struct {
+            callback_data: wire.UInt,
+
+            pub const Interface = Callback;
+            pub const Opcode = 0;
+        };
+    };
 };
 
 pub const Registry = enum(wire.Word) {
