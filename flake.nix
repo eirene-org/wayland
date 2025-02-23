@@ -15,7 +15,7 @@
     {
       devShells = forSystems (pkgs: {
         default = pkgs.mkShell {
-          name = "eirene-direnv-shell";
+          name = "eirene-wayland-shell";
 
           buildInputs = with pkgs; [
             bashInteractive
