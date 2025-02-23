@@ -1,7 +1,6 @@
 const std = @import("std");
 
-const wc = @import("client.zig");
-const wl = @import("wayland.zig");
+const wl = @import("wayland");
 
 fn onRegistryGlobalEvent(payload: wl.Registry.Event.Global, userdata: ?*anyopaque) void {
     _ = userdata;
@@ -22,7 +21,7 @@ pub fn main() !void {
 
     const allocator = gpa.allocator();
 
-    var client = wc.Client.init(allocator);
+    var client = wl.Client.init(allocator);
     defer client.close();
 
     try client.connect();
