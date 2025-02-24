@@ -8,9 +8,9 @@ pub const Display = enum(wire.Word) {
 
     const Self = @This();
 
-    pub const Request = enum(wire.Word) {
-        sync,
-        get_registry,
+    pub const Request = union(enum(wire.Opcode)) {
+        sync: Sync,
+        get_registry: GetRegistry,
 
         pub const Sync = wire.Message(packed struct {
             callback: wire.Object,
@@ -59,7 +59,7 @@ pub const display: Display = @enumFromInt(@intFromEnum(wire.Object.display));
 pub const Callback = enum(wire.Word) {
     _,
 
-    pub const Event = union(enum) {
+    pub const Event = union(enum(wire.Opcode)) {
         done: Event.Done,
 
         pub const Done = struct {
@@ -74,7 +74,7 @@ pub const Callback = enum(wire.Word) {
 pub const Registry = enum(wire.Word) {
     _,
 
-    pub const Event = union(enum) {
+    pub const Event = union(enum(wire.Opcode)) {
         global: Event.Global,
 
         pub const Global = struct {
