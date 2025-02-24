@@ -12,13 +12,13 @@ pub const Display = enum(wire.Word) {
         sync: Sync,
         get_registry: GetRegistry,
 
-        pub const Sync = wire.Message(packed struct {
-            callback: wire.Object,
-        });
+        pub const Sync = struct {
+            callback: wire.NewID.withInterface(Callback) = @enumFromInt(0),
+        };
 
-        pub const GetRegistry = wire.Message(packed struct {
-            registry: wire.Object,
-        });
+        pub const GetRegistry = struct {
+            registry: wire.NewID.withInterface(Registry) = @enumFromInt(0),
+        };
     };
 
     pub fn sync(self: *const Self, client: *wc.Client) !Callback {

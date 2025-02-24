@@ -39,6 +39,25 @@ fn serializeObject(buffer: []u8, offset: *u16, object: Object) void {
     serializeUInt(buffer, offset, @intFromEnum(object));
 }
 
+pub const NewID = struct {
+    interface: String,
+    version: UInt,
+    object: Object,
+
+    pub fn withInterface(_Interface: type) type {
+        return enum(Word) {
+            _,
+
+            pub const Type = NewID;
+            pub const Interface = _Interface;
+        };
+    }
+
+    pub fn isEnum(T: type) bool {
+        return @typeInfo(T) == .Enum and @hasDecl(T, "Type") and T.Type == NewID;
+    }
+};
+
 pub const Opcode = HalfWord;
 pub const Size = HalfWord;
 
