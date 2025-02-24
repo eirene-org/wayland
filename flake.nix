@@ -17,7 +17,7 @@
         default = pkgs.mkShell {
           name = "eirene-wayland-shell";
 
-          buildInputs = with pkgs; [
+          nativeBuildInputs = with pkgs; [
             bashInteractive
             nixd
             nixfmt-rfc-style
