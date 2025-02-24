@@ -1,27 +1,26 @@
 const std = @import("std");
 
-const wc = @import("client.zig");
-const wire = @import("wire.zig");
+const wl = @import("root.zig");
 
-pub const Display = enum(wire.Word) {
+pub const Display = enum(wl.Word) {
     _,
 
     const Self = @This();
 
-    pub const Request = union(enum(wire.Opcode)) {
+    pub const Request = union(enum(wl.Opcode)) {
         sync: Sync,
         get_registry: GetRegistry,
 
         pub const Sync = struct {
-            callback: wire.NewID.withInterface(Callback) = @enumFromInt(0),
+            callback: wl.NewID.withInterface(Callback) = @enumFromInt(0),
         };
 
         pub const GetRegistry = struct {
-            registry: wire.NewID.withInterface(Registry) = @enumFromInt(0),
+            registry: wl.NewID.withInterface(Registry) = @enumFromInt(0),
         };
     };
 
-    pub fn sync(self: *const Self, client: *wc.Client) !Callback {
+    pub fn sync(self: *const Self, client: *wl.Client) !Callback {
         const callback = try client.newObject();
 
         var message = Request.Sync.init(
@@ -37,7 +36,7 @@ pub const Display = enum(wire.Word) {
         return @enumFromInt(@intFromEnum(callback));
     }
 
-    pub fn getRegistry(self: *const Self, client: *wc.Client) !Registry {
+    pub fn getRegistry(self: *const Self, client: *wl.Client) !Registry {
         const registry = try client.newObject();
 
         var message = Request.GetRegistry.init(
@@ -54,14 +53,14 @@ pub const Display = enum(wire.Word) {
     }
 };
 
-pub const Callback = enum(wire.Word) {
+pub const Callback = enum(wl.Word) {
     _,
 
-    pub const Event = union(enum(wire.Opcode)) {
+    pub const Event = union(enum(wl.Opcode)) {
         done: Event.Done,
 
         pub const Done = struct {
-            callback_data: wire.UInt,
+            callback_data: wl.UInt,
 
             pub const Interface = Callback;
             pub const Opcode = 0;
@@ -69,16 +68,16 @@ pub const Callback = enum(wire.Word) {
     };
 };
 
-pub const Registry = enum(wire.Word) {
+pub const Registry = enum(wl.Word) {
     _,
 
-    pub const Event = union(enum(wire.Opcode)) {
+    pub const Event = union(enum(wl.Opcode)) {
         global: Event.Global,
 
         pub const Global = struct {
-            name: wire.UInt,
-            interface: wire.String,
-            version: wire.UInt,
+            name: wl.UInt,
+            interface: wl.String,
+            version: wl.UInt,
 
             pub const Interface = Registry;
             pub const Opcode = 0;
