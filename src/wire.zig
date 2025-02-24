@@ -74,7 +74,10 @@ pub fn Message(Payload: type) type {
                     UInt,
                     Object,
                     => size += @sizeOf(Word),
-                    else => {},
+                    else => switch (@typeInfo(field.type)) {
+                        .Enum => size += @sizeOf(Word),
+                        else => @compileError("cannot compute the size of the following field: " ++ field.name),
+                    },
                 }
             }
 
@@ -83,6 +86,7 @@ pub fn Message(Payload: type) type {
 
         pub fn serialize(self: *const Self, allocator: std.mem.Allocator) ![]const u8 {
             const buffer = try allocator.alloc(u8, self.header.size);
+            errdefer allocator.free(buffer);
 
             var offset: u16 = 0;
             self.header.serialize(buffer, &offset);
@@ -92,7 +96,10 @@ pub fn Message(Payload: type) type {
                 switch (field.type) {
                     UInt => serializeUInt(buffer, &offset, @field(payload, field.name)),
                     Object => serializeObject(buffer, &offset, @field(payload, field.name)),
-                    else => {},
+                    else => switch (@typeInfo(field.type)) {
+                        .Enum => serializeUInt(buffer, &offset, @intFromEnum(@field(payload, field.name))),
+                        else => @compileError("cannot serialize the following field: " ++ field.name),
+                    },
                 }
             }
 
@@ -109,7 +116,9 @@ pub fn Message(Payload: type) type {
                 switch (field.type) {
                     UInt => @field(payload, field.name) = deserializeUInt(buffer, &offset),
                     String => @field(payload, field.name) = deserializeString(buffer, &offset),
-                    else => {},
+                    else => switch (@typeInfo(field.type)) {
+                        else => @compileError("cannot deserialize the following field: " ++ field.name),
+                    },
                 }
             }
 
