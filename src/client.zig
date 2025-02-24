@@ -1,14 +1,15 @@
 const std = @import("std");
 
+const proxy = @import("proxy.zig");
 const wl = @import("wayland.zig");
 const wire = @import("wire.zig");
 
-const EventId = struct {
+pub const EventID = struct {
     object: wire.Object,
     opcode: wire.Opcode,
 };
 
-const EventListener = struct {
+pub const EventListener = struct {
     callback: *const fn (buffer: []const u8, userdata: ?*anyopaque) void,
     userdata: ?*anyopaque,
 
@@ -19,7 +20,7 @@ const EventListener = struct {
     }
 };
 
-const EventListeners = std.AutoArrayHashMap(EventId, EventListener);
+const EventListeners = std.AutoArrayHashMap(EventID, EventListener);
 
 pub const Client = struct {
     allocator: std.mem.Allocator,
@@ -44,13 +45,18 @@ pub const Client = struct {
         return std.fs.path.join(allocator, &.{ xdg_runtime_dir, name });
     }
 
-    pub fn connect(self: *Self) !void {
+    pub fn connect(self: *Self) !proxy.Proxy(wl.Display) {
         const socketPath = try getSocketPath(self.allocator);
         defer self.allocator.free(socketPath);
 
         std.log.info("wayland socket path: {s}", .{socketPath});
 
         self.socket = try std.net.connectUnixSocket(socketPath);
+
+        return .{
+            .object = @enumFromInt(@intFromEnum(wire.Object.display)),
+            .client = self,
+        };
     }
 
     pub fn close(self: *Self) void {
@@ -67,30 +73,10 @@ pub const Client = struct {
 
     pub fn setEventListener(
         self: *Self,
-        Payload: type,
-        object: Payload.Interface,
-        comptime callback: *const fn (payload: Payload, userdata: ?*anyopaque) void,
-        userdata: ?*anyopaque,
+        eventID: EventID,
+        eventListener: EventListener,
     ) !void {
-        const eventId = EventId{
-            .object = @enumFromInt(@intFromEnum(object)),
-            .opcode = Payload.Opcode,
-        };
-
-        const Wrapper = struct {
-            fn wrappedCallback(buffer: []const u8, _userdata: ?*anyopaque) void {
-                const Message = wire.Message(Payload);
-                const message = Message.deserialize(buffer);
-
-                callback(message.payload, _userdata);
-            }
-        };
-
-        const eventListener = EventListener{
-            .callback = Wrapper.wrappedCallback,
-            .userdata = userdata,
-        };
-        try self.eventListeners.put(eventId, eventListener);
+        try self.eventListeners.put(eventID, eventListener);
     }
 
     pub fn dispatchMessage(self: *Self) !void {
@@ -103,7 +89,7 @@ pub const Client = struct {
 
         const header: *const wire.Header = @ptrCast(@alignCast(header_slice));
 
-        const eventId = EventId{ .object = header.id, .opcode = header.opcode };
+        const eventId = EventID{ .object = header.id, .opcode = header.opcode };
         const eventListener = self.eventListeners.get(eventId) orelse return;
 
         const payload_slice = self.buffer[@sizeOf(wire.Header)..header.size];

@@ -24,15 +24,15 @@ pub fn main() !void {
     var client = wl.Client.init(allocator);
     defer client.close();
 
-    try client.connect();
+    const display = try client.connect();
 
-    const registry = try wl.display.getRegistry(&client);
-    const callback = try wl.display.sync(&client);
+    const registry = try display.request(.get_registry, .{});
+    const callback = try display.request(.sync, .{});
 
-    try client.setEventListener(wl.Registry.Event.Global, registry, onRegistryGlobalEvent, null);
+    try registry.listen(.global, onRegistryGlobalEvent, null);
 
     var registration_done = false;
-    try client.setEventListener(wl.Callback.Event.Done, callback, onCallbackDoneEvent, &registration_done);
+    try callback.listen(.done, onCallbackDoneEvent, &registration_done);
 
     std.debug.print("name\tversion\tinterface\n", .{});
     while (!registration_done) {

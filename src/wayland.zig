@@ -54,8 +54,6 @@ pub const Display = enum(wire.Word) {
     }
 };
 
-pub const display: Display = @enumFromInt(@intFromEnum(wire.Object.display));
-
 pub const Callback = enum(wire.Word) {
     _,
 
