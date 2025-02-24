@@ -59,7 +59,7 @@ pub const Client = struct {
         };
     }
 
-    pub fn close(self: *Self) void {
+    pub fn deinit(self: *Self) void {
         self.eventListeners.deinit();
         self.socket.close();
     }

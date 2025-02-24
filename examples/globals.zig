@@ -22,7 +22,7 @@ pub fn main() !void {
     const allocator = gpa.allocator();
 
     var client = wl.Client.init(allocator);
-    defer client.close();
+    defer client.deinit();
 
     const display = try client.connect();
 
