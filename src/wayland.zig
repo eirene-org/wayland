@@ -1,5 +1,3 @@
-const std = @import("std");
-
 const wl = @import("root.zig");
 
 pub const Display = enum(wl.Word) {
