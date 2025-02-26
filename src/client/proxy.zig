@@ -14,16 +14,16 @@ pub fn Proxy(Interface: type) type {
         pub fn request(
             self: *const Self,
             comptime opcode: std.meta.Tag(Interface.Request),
-            _payload: std.meta.TagPayload(Interface.Request, opcode),
+            payload: std.meta.TagPayload(Interface.Request, opcode),
         ) !RequestReturnType(Interface.Request, opcode) {
             const Payload = std.meta.TagPayload(Interface.Request, opcode);
 
             const new_object = try self.client.newObject();
 
-            var payload: Payload = _payload;
+            var finalized_payload: Payload = payload;
             inline for (@typeInfo(Payload).Struct.fields) |field| {
                 if (comptime wp.NewID.isEnum(field.type)) {
-                    @field(payload, field.name) = @enumFromInt(@intFromEnum(new_object));
+                    @field(finalized_payload, field.name) = @enumFromInt(@intFromEnum(new_object));
                 }
             }
 
@@ -33,7 +33,7 @@ pub fn Proxy(Interface: type) type {
                     .id = @enumFromInt(@intFromEnum(self.object)),
                     .opcode = @intFromEnum(opcode),
                 },
-                payload,
+                finalized_payload,
             );
 
             const messageBytes = try message.serialize(self.client.allocator);
