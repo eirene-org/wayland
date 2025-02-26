@@ -1,14 +1,15 @@
 const std = @import("std");
 
-const wl = @import("wayland");
+const wc = @import("wayland-client");
+const wp = @import("wayland-protocols");
 
-fn onRegistryGlobalEvent(payload: wl.Registry.Event.Global, userdata: ?*anyopaque) void {
+fn onRegistryGlobalEvent(payload: wp.wl_registry.Event.Global, userdata: ?*anyopaque) void {
     _ = userdata;
 
     std.debug.print("{}\t{}\t{s}\n", .{ payload.name, payload.version, payload.interface });
 }
 
-fn onCallbackDoneEvent(payload: wl.Callback.Event.Done, userdata: ?*anyopaque) void {
+fn onCallbackDoneEvent(payload: wp.wl_callback.Event.Done, userdata: ?*anyopaque) void {
     _ = payload;
 
     const registration_done: *bool = @ptrCast(userdata.?);
@@ -21,7 +22,7 @@ pub fn main() !void {
 
     const allocator = gpa.allocator();
 
-    var client = wl.Client.init(allocator);
+    var client = wc.Client.init(allocator);
     defer client.deinit();
 
     const display = try client.connect();

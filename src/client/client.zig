@@ -1,10 +1,12 @@
 const std = @import("std");
 
+const wp = @import("wayland-protocols");
+
 const wl = @import("root.zig");
 
 pub const EventID = struct {
-    object: wl.Object,
-    opcode: wl.Opcode,
+    object: wp.Object,
+    opcode: wp.Opcode,
 };
 
 pub const EventListener = struct {
@@ -43,7 +45,7 @@ pub const Client = struct {
         return std.fs.path.join(allocator, &.{ xdg_runtime_dir, name });
     }
 
-    pub fn connect(self: *Self) !wl.Proxy(wl.Display) {
+    pub fn connect(self: *Self) !wl.Proxy(wp.wl_display) {
         const socketPath = try getSocketPath(self.allocator);
         defer self.allocator.free(socketPath);
 
@@ -52,7 +54,7 @@ pub const Client = struct {
         self.socket = try std.net.connectUnixSocket(socketPath);
 
         return .{
-            .object = @enumFromInt(@intFromEnum(wl.Object.display)),
+            .object = @enumFromInt(@intFromEnum(wp.Object.display)),
             .client = self,
         };
     }
@@ -62,8 +64,8 @@ pub const Client = struct {
         self.socket.close();
     }
 
-    pub fn newObject(self: *Self) !wl.Object {
-        const id: wl.Object = @enumFromInt(self.next_id);
+    pub fn newObject(self: *Self) !wp.Object {
+        const id: wp.Object = @enumFromInt(self.next_id);
         self.next_id += 1;
 
         return id;
@@ -78,19 +80,19 @@ pub const Client = struct {
     }
 
     pub fn dispatchMessage(self: *Self) !void {
-        const header_slice = self.buffer[0..@sizeOf(wl.Header)];
+        const header_slice = self.buffer[0..@sizeOf(wp.Header)];
         const bytes_read = try self.socket.readAll(header_slice);
 
-        if (bytes_read < @sizeOf(wl.Header)) {
+        if (bytes_read < @sizeOf(wp.Header)) {
             return error.EOF;
         }
 
-        const header: *const wl.Header = @ptrCast(@alignCast(header_slice));
+        const header: *const wp.Header = @ptrCast(@alignCast(header_slice));
 
         const eventId = EventID{ .object = header.id, .opcode = header.opcode };
         const eventListener = self.eventListeners.get(eventId) orelse return;
 
-        const payload_slice = self.buffer[@sizeOf(wl.Header)..header.size];
+        const payload_slice = self.buffer[@sizeOf(wp.Header)..header.size];
         _ = try self.socket.readAll(payload_slice);
 
         const message_slice = self.buffer[0..header.size];

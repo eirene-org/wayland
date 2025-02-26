@@ -11,18 +11,15 @@ pub fn build(b: *std.Build) !void {
     const use_llvm = b.option(bool, "use_llvm", "Use the LLVM backend") orelse !is_debug_mode;
     const strip = b.option(bool, "strip", "Strip debug symbols") orelse !is_debug_mode;
 
-    const lib = b.addStaticLibrary(.{
-        .name = "wayland",
-        .root_source_file = b.path("src/root.zig"),
-        .target = target,
-        .optimize = optimize,
-        .use_lld = use_llvm,
-        .use_llvm = use_llvm,
+    const module_wayland_protocols = b.addModule("wayland-protocols", .{
+        .root_source_file = b.path("src/protocols/root.zig"),
     });
-    b.installArtifact(lib);
 
-    const module = b.addModule("wayland", .{
-        .root_source_file = lib.root_module.root_source_file,
+    const module_wayland_client = b.addModule("wayland-client", .{
+        .root_source_file = b.path("src/client/root.zig"),
+        .imports = &.{
+            .{ .name = "wayland-protocols", .module = module_wayland_protocols },
+        },
     });
 
     const example_globals = b.addExecutable(.{
@@ -34,7 +31,8 @@ pub fn build(b: *std.Build) !void {
         .use_llvm = use_llvm,
         .strip = strip,
     });
-    example_globals.root_module.addImport("wayland", module);
+    example_globals.root_module.addImport("wayland-client", module_wayland_client);
+    example_globals.root_module.addImport("wayland-protocols", module_wayland_protocols);
 
     const check_step = b.step("check", "Check if examples compile");
     check_step.dependOn(&example_globals.step);

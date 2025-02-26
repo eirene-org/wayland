@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const wp = @import("wayland-protocols");
+
 const wl = @import("root.zig");
 
 pub fn Proxy(Interface: type) type {
@@ -20,12 +22,12 @@ pub fn Proxy(Interface: type) type {
 
             var payload: Payload = _payload;
             inline for (@typeInfo(Payload).Struct.fields) |field| {
-                if (comptime wl.NewID.isEnum(field.type)) {
+                if (comptime wp.NewID.isEnum(field.type)) {
                     @field(payload, field.name) = @enumFromInt(@intFromEnum(new_object));
                 }
             }
 
-            const Message = wl.Message(Payload);
+            const Message = wp.Message(Payload);
             var message = Message.init(
                 .{
                     .id = @enumFromInt(@intFromEnum(self.object)),
@@ -63,7 +65,7 @@ pub fn Proxy(Interface: type) type {
 
             const Wrapper = struct {
                 fn wrappedCallback(buffer: []const u8, _userdata: ?*anyopaque) void {
-                    const Message = wl.Message(Payload);
+                    const Message = wp.Message(Payload);
                     const message = Message.deserialize(buffer);
 
                     callback(message.payload, _userdata);
@@ -82,7 +84,7 @@ pub fn Proxy(Interface: type) type {
 fn RequestReturnType(Request: type, comptime opcode: std.meta.Tag(Request)) type {
     const Payload = std.meta.TagPayload(Request, opcode);
     inline for (@typeInfo(Payload).Struct.fields) |field| {
-        if (wl.NewID.isEnum(field.type)) {
+        if (wp.NewID.isEnum(field.type)) {
             return Proxy(field.type.Interface);
         }
     }
