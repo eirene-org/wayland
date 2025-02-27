@@ -6,8 +6,8 @@ const wl = @import("root.zig");
 
 pub fn Proxy(I: type) type {
     return struct {
-        object: Interface,
         client: *wl.Client,
+        object: Interface,
 
         const Self = @This();
 
@@ -50,8 +50,8 @@ pub fn Proxy(I: type) type {
 
             if (QualifiedRequestReturnType != void) {
                 return QualifiedRequestReturnType{
-                    .object = @enumFromInt(@intFromEnum(newID.?.object.value)),
                     .client = self.client,
+                    .object = @enumFromInt(@intFromEnum(newID.?.object.value)),
                 };
             }
         }

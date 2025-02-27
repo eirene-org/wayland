@@ -54,8 +54,8 @@ pub const Client = struct {
         self.socket = try std.net.connectUnixSocket(socketPath);
 
         return .{
-            .object = @enumFromInt(@intFromEnum(wp.Object.Value.display)),
             .client = self,
+            .object = @enumFromInt(@intFromEnum(wp.Object.Value.display)),
         };
     }
 
