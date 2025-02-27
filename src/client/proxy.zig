@@ -4,19 +4,22 @@ const wp = @import("wayland-protocols");
 
 const wl = @import("root.zig");
 
-pub fn Proxy(Interface: type) type {
+pub fn Proxy(I: type) type {
     return struct {
         object: Interface,
         client: *wl.Client,
 
         const Self = @This();
 
+        pub const Interface = I;
+
         pub fn request(
             self: *const Self,
-            comptime opcode: std.meta.Tag(Interface.Request),
-            payload: std.meta.TagPayload(Interface.Request, opcode),
-        ) !RequestReturnType(Interface.Request, opcode) {
-            const Payload = std.meta.TagPayload(Interface.Request, opcode);
+            comptime opcode: std.meta.Tag(I.Request),
+            payload: std.meta.TagPayload(I.Request, opcode),
+        ) !RequestReturnType(I.Request, opcode) {
+            const Payload = std.meta.TagPayload(I.Request, opcode);
+            const QualifiedRequestReturnType = RequestReturnType(I.Request, opcode);
 
             const new_object = try self.client.newObject();
 
@@ -41,7 +44,6 @@ pub fn Proxy(Interface: type) type {
 
             try self.client.request(messageBytes);
 
-            const QualifiedRequestReturnType = RequestReturnType(Interface.Request, opcode);
             if (QualifiedRequestReturnType != void) {
                 return QualifiedRequestReturnType{
                     .object = @enumFromInt(@intFromEnum(new_object)),
@@ -52,11 +54,11 @@ pub fn Proxy(Interface: type) type {
 
         pub fn listen(
             self: *const Self,
-            comptime opcode: std.meta.Tag(Interface.Event),
-            comptime callback: *const fn (payload: std.meta.TagPayload(Interface.Event, opcode), userdata: ?*anyopaque) void,
+            comptime opcode: std.meta.Tag(I.Event),
+            comptime callback: *const fn (payload: std.meta.TagPayload(I.Event, opcode), userdata: ?*anyopaque) void,
             userdata: ?*anyopaque,
         ) !void {
-            const Payload = std.meta.TagPayload(Interface.Event, opcode);
+            const Payload = std.meta.TagPayload(I.Event, opcode);
 
             const eventID = wl.EventID{
                 .object = @enumFromInt(@intFromEnum(self.object)),
