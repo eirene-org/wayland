@@ -20,6 +20,21 @@ fn deserializeUInt(buffer: []const u8, offset: *u16) UInt {
 
 pub const String = [:0]const u8;
 
+fn computeSizeString(string: String) Size {
+    return @sizeOf(Word) +
+        std.mem.alignForward(u16, @intCast(string.len + 1), @sizeOf(Word));
+}
+
+fn serializeString(buffer: []u8, offset: *u16, string: String) void {
+    serializeUInt(buffer, offset, @intCast(string.len + 1));
+
+    std.mem.copyForwards(u8, buffer[offset.*..], std.mem.sliceAsBytes(string));
+    buffer[offset.*..][string.len] = 0;
+
+    const aligned_len = std.mem.alignForward(u16, @intCast(string.len + 1), @sizeOf(Word));
+    offset.* += aligned_len;
+}
+
 fn deserializeString(buffer: []const u8, offset: *u16) String {
     const len: u16 = @intCast(deserializeUInt(buffer, offset));
     const string = buffer[offset.*..][0..(len - 1) :0];
@@ -43,6 +58,18 @@ pub const NewID = struct {
     interface: String,
     version: UInt,
     object: Object,
+
+    const Self = @This();
+
+    fn computeSize(self: *const Self) Size {
+        return @intCast(computeSizeString(self.interface) + @sizeOf(UInt) + @sizeOf(Object));
+    }
+
+    fn serialize(buffer: []u8, offset: *u16, newID: Self) void {
+        serializeString(buffer, offset, newID.interface);
+        serializeUInt(buffer, offset, newID.version);
+        serializeObject(buffer, offset, newID.object);
+    }
 
     pub fn withInterface(_Interface: type) type {
         return enum(Word) {
@@ -93,6 +120,7 @@ pub fn Message(Payload: type) type {
                     UInt,
                     Object,
                     => size += @sizeOf(Word),
+                    NewID => size += @field(self.payload, field.name).computeSize(),
                     else => switch (@typeInfo(field.type)) {
                         .Enum => size += @sizeOf(Word),
                         else => @compileError("cannot compute the size of the following field: " ++ field.name),
@@ -115,6 +143,7 @@ pub fn Message(Payload: type) type {
                 switch (field.type) {
                     UInt => serializeUInt(buffer, &offset, @field(payload, field.name)),
                     Object => serializeObject(buffer, &offset, @field(payload, field.name)),
+                    NewID => NewID.serialize(buffer, &offset, @field(payload, field.name)),
                     else => switch (@typeInfo(field.type)) {
                         .Enum => serializeUInt(buffer, &offset, @intFromEnum(@field(payload, field.name))),
                         else => @compileError("cannot serialize the following field: " ++ field.name),
