@@ -15,7 +15,7 @@ fn onWLRegistryGlobalEvent(payload: wp.wl_registry.Event.Global, userdata: ?*any
     const globals: *Globals = @alignCast(@ptrCast(userdata));
 
     inline for (@typeInfo(Globals).Struct.fields[1..]) |field| blk: {
-        if (std.mem.eql(u8, field.name, payload.interface)) {
+        if (std.mem.eql(u8, field.name, payload.interface.value)) {
             const Interface = @typeInfo(field.type).Optional.child.Interface;
 
             const newID = globals.wl_registry.client.newID(Interface);
@@ -27,7 +27,7 @@ fn onWLRegistryGlobalEvent(payload: wp.wl_registry.Event.Global, userdata: ?*any
 
             @field(globals, field.name) = .{
                 .client = globals.wl_registry.client,
-                .object = @enumFromInt(@intFromEnum(newID.object)),
+                .object = @enumFromInt(@intFromEnum(newID.object.value)),
             };
         }
     }

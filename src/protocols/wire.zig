@@ -4,55 +4,90 @@ pub const HalfWord = u16;
 
 pub const Word = u32;
 
-pub const UInt = Word;
+pub const UInt = packed struct {
+    value: Value,
 
-fn serializeUInt(buffer: []u8, offset: *u16, uint: UInt) void {
-    std.mem.copyForwards(u8, buffer[offset.*..], std.mem.asBytes(&uint));
-    offset.* += @sizeOf(UInt);
-}
+    const Self = @This();
+    pub const Value = Word;
 
-fn deserializeUInt(buffer: []const u8, offset: *u16) UInt {
-    const uint = std.mem.bytesToValue(UInt, buffer[offset.*..][0..@sizeOf(Word)]);
-    offset.* += @sizeOf(UInt);
+    pub inline fn from(value: Value) Self {
+        return .{ .value = value };
+    }
 
-    return uint;
-}
+    pub fn computeSize(_: *const Self) Size {
+        return @sizeOf(Value);
+    }
 
-pub const String = [:0]const u8;
+    pub fn serialize(self: *const Self, buffer: []u8, offset: *u16) void {
+        std.mem.copyForwards(u8, buffer[offset.*..], std.mem.asBytes(&self.value));
+        offset.* += @sizeOf(Value);
+    }
 
-fn computeSizeString(string: String) Size {
-    return @sizeOf(Word) +
-        std.mem.alignForward(u16, @intCast(string.len + 1), @sizeOf(Word));
-}
+    pub fn deserialize(buffer: []const u8, offset: *u16) Self {
+        const value = std.mem.bytesToValue(Value, buffer[offset.*..][0..@sizeOf(Word)]);
+        offset.* += @sizeOf(Value);
 
-fn serializeString(buffer: []u8, offset: *u16, string: String) void {
-    serializeUInt(buffer, offset, @intCast(string.len + 1));
-
-    std.mem.copyForwards(u8, buffer[offset.*..], std.mem.sliceAsBytes(string));
-    buffer[offset.*..][string.len] = 0;
-
-    const aligned_len = std.mem.alignForward(u16, @intCast(string.len + 1), @sizeOf(Word));
-    offset.* += aligned_len;
-}
-
-fn deserializeString(buffer: []const u8, offset: *u16) String {
-    const len: u16 = @intCast(deserializeUInt(buffer, offset));
-    const string = buffer[offset.*..][0..(len - 1) :0];
-
-    const aligned_size = std.mem.alignForward(u16, len, @sizeOf(Word));
-    offset.* += aligned_size;
-
-    return string;
-}
-
-pub const Object = enum(Word) {
-    display = 1,
-    _,
+        return UInt.from(value);
+    }
 };
 
-fn serializeObject(buffer: []u8, offset: *u16, object: Object) void {
-    serializeUInt(buffer, offset, @intFromEnum(object));
-}
+pub const String = struct {
+    value: Value,
+
+    const Self = @This();
+    pub const Value = [:0]const u8;
+
+    pub inline fn from(value: Value) Self {
+        return .{ .value = value };
+    }
+
+    pub fn computeSize(self: *const Self) Size {
+        return @sizeOf(Word) +
+            std.mem.alignForward(u16, @intCast(self.value.len + 1), @sizeOf(Word));
+    }
+
+    pub fn serialize(self: *const Self, buffer: []u8, offset: *u16) void {
+        UInt.from(@intCast(self.value.len + 1)).serialize(buffer, offset);
+
+        std.mem.copyForwards(u8, buffer[offset.*..], std.mem.sliceAsBytes(self.value));
+        buffer[offset.*..][self.value.len] = 0;
+
+        const aligned_len = std.mem.alignForward(u16, @intCast(self.value.len + 1), @sizeOf(Word));
+        offset.* += aligned_len;
+    }
+
+    pub fn deserialize(buffer: []const u8, offset: *u16) Self {
+        const len: u16 = @intCast(UInt.deserialize(buffer, offset).value);
+        const value = buffer[offset.*..][0..(len - 1) :0];
+
+        const aligned_size = std.mem.alignForward(u16, len, @sizeOf(Word));
+        offset.* += aligned_size;
+
+        return String.from(value);
+    }
+};
+
+pub const Object = packed struct {
+    value: Value,
+
+    const Self = @This();
+    pub const Value = enum(Word) {
+        display = 1,
+        _,
+    };
+
+    pub fn from(value: Value) Self {
+        return .{ .value = value };
+    }
+
+    pub fn computeSize(_: *const Self) Size {
+        return @sizeOf(Value);
+    }
+
+    pub fn serialize(self: *const Self, buffer: []u8, offset: *u16) void {
+        UInt.from(@intFromEnum(self.value)).serialize(buffer, offset);
+    }
+};
 
 pub const NewID = struct {
     interface: String,
@@ -61,14 +96,16 @@ pub const NewID = struct {
 
     const Self = @This();
 
-    fn computeSize(self: *const Self) Size {
-        return @intCast(computeSizeString(self.interface) + @sizeOf(UInt) + @sizeOf(Object));
+    pub fn computeSize(self: *const Self) Size {
+        return self.interface.computeSize() +
+            self.version.computeSize() +
+            self.object.computeSize();
     }
 
-    fn serialize(buffer: []u8, offset: *u16, newID: Self) void {
-        serializeString(buffer, offset, newID.interface);
-        serializeUInt(buffer, offset, newID.version);
-        serializeObject(buffer, offset, newID.object);
+    pub fn serialize(self: *const Self, buffer: []u8, offset: *u16) void {
+        self.interface.serialize(buffer, offset);
+        self.version.serialize(buffer, offset);
+        self.object.serialize(buffer, offset);
     }
 
     pub fn withInterface(_Interface: type) type {
@@ -93,7 +130,7 @@ pub const Header = packed struct {
     opcode: Opcode,
     size: Size = undefined,
 
-    fn serialize(self: *const Header, buffer: []u8, offset: *u16) void {
+    pub fn serialize(self: *const Header, buffer: []u8, offset: *u16) void {
         std.mem.copyForwards(u8, buffer[offset.*..], std.mem.asBytes(self));
         offset.* += @sizeOf(Header);
     }
@@ -112,15 +149,15 @@ pub fn Message(Payload: type) type {
             return self;
         }
 
-        fn computeSize(self: *Self) void {
+        pub fn computeSize(self: *Self) void {
             var size: u16 = @sizeOf(Header);
 
             inline for (std.meta.fields(Payload)) |field| {
                 switch (field.type) {
                     UInt,
                     Object,
-                    => size += @sizeOf(Word),
-                    NewID => size += @field(self.payload, field.name).computeSize(),
+                    NewID,
+                    => size += @field(self.payload, field.name).computeSize(),
                     else => switch (@typeInfo(field.type)) {
                         .Enum => size += @sizeOf(Word),
                         else => @compileError("cannot compute the size of the following field: " ++ field.name),
@@ -141,11 +178,12 @@ pub fn Message(Payload: type) type {
             const payload = &self.payload;
             inline for (std.meta.fields(Payload)) |field| {
                 switch (field.type) {
-                    UInt => serializeUInt(buffer, &offset, @field(payload, field.name)),
-                    Object => serializeObject(buffer, &offset, @field(payload, field.name)),
-                    NewID => NewID.serialize(buffer, &offset, @field(payload, field.name)),
+                    UInt,
+                    Object,
+                    NewID,
+                    => @field(payload, field.name).serialize(buffer, &offset),
                     else => switch (@typeInfo(field.type)) {
-                        .Enum => serializeUInt(buffer, &offset, @intFromEnum(@field(payload, field.name))),
+                        .Enum => UInt.from(@intFromEnum(@field(payload, field.name))).serialize(buffer, &offset),
                         else => @compileError("cannot serialize the following field: " ++ field.name),
                     },
                 }
@@ -162,8 +200,9 @@ pub fn Message(Payload: type) type {
             var offset: u16 = @sizeOf(Header);
             inline for (std.meta.fields(Payload)) |field| {
                 switch (field.type) {
-                    UInt => @field(payload, field.name) = deserializeUInt(buffer, &offset),
-                    String => @field(payload, field.name) = deserializeString(buffer, &offset),
+                    UInt,
+                    String,
+                    => @field(payload, field.name) = field.type.deserialize(buffer, &offset),
                     else => switch (@typeInfo(field.type)) {
                         else => @compileError("cannot deserialize the following field: " ++ field.name),
                     },

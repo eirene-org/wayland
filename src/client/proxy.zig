@@ -28,7 +28,8 @@ pub fn Proxy(I: type) type {
                 newID = self.client.newID(I);
                 inline for (@typeInfo(Payload).Struct.fields) |field| {
                     if (comptime wp.NewID.isEnum(field.type)) {
-                        @field(finalized_payload, field.name) = @enumFromInt(@intFromEnum(newID.?.object));
+                        @field(finalized_payload, field.name) =
+                            @enumFromInt(@intFromEnum(newID.?.object.value));
                     }
                 }
             }
@@ -36,7 +37,7 @@ pub fn Proxy(I: type) type {
             const Message = wp.Message(Payload);
             var message = Message.init(
                 .{
-                    .id = @enumFromInt(@intFromEnum(self.object)),
+                    .id = wp.Object.from(@enumFromInt(@intFromEnum(self.object))),
                     .opcode = @intFromEnum(opcode),
                 },
                 finalized_payload,
@@ -49,7 +50,7 @@ pub fn Proxy(I: type) type {
 
             if (QualifiedRequestReturnType != void) {
                 return QualifiedRequestReturnType{
-                    .object = @enumFromInt(@intFromEnum(newID.?.object)),
+                    .object = @enumFromInt(@intFromEnum(newID.?.object.value)),
                     .client = self.client,
                 };
             }
@@ -64,7 +65,7 @@ pub fn Proxy(I: type) type {
             const Payload = std.meta.TagPayload(I.Event, opcode);
 
             const eventID = wl.EventID{
-                .object = @enumFromInt(@intFromEnum(self.object)),
+                .object = wp.Object.from(@enumFromInt(@intFromEnum(self.object))),
                 .opcode = @intFromEnum(opcode),
             };
 

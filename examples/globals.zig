@@ -6,7 +6,7 @@ const wp = @import("wayland-protocols");
 fn onWLRegistryGlobalEvent(payload: wp.wl_registry.Event.Global, userdata: ?*anyopaque) void {
     _ = userdata;
 
-    std.debug.print("{}\t{}\t{s}\n", .{ payload.name, payload.version, payload.interface });
+    std.debug.print("{}\t{}\t{s}\n", .{ payload.name.value, payload.version.value, payload.interface.value });
 }
 
 fn onWLCallbackDoneEvent(payload: wp.wl_callback.Event.Done, userdata: ?*anyopaque) void {
