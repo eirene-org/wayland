@@ -28,6 +28,15 @@ pub const wl_registry = enum(wp.Word) {
     pub const NAME = "wl_registry";
     pub const VERSION = 1;
 
+    pub const Request = union(enum(wp.Opcode)) {
+        bind: Request.Bind,
+
+        pub const Bind = struct {
+            name: wp.UInt,
+            id: wp.NewID,
+        };
+    };
+
     pub const Event = union(enum(wp.Opcode)) {
         global: Event.Global,
 
