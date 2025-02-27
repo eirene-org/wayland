@@ -21,12 +21,15 @@ pub fn Proxy(I: type) type {
             const Payload = std.meta.TagPayload(I.Request, opcode);
             const QualifiedRequestReturnType = RequestReturnType(I.Request, opcode);
 
-            const new_object = try self.client.newObject();
+            var newID: ?wp.NewID = null;
 
             var finalized_payload: Payload = payload;
-            inline for (@typeInfo(Payload).Struct.fields) |field| {
-                if (comptime wp.NewID.isEnum(field.type)) {
-                    @field(finalized_payload, field.name) = @enumFromInt(@intFromEnum(new_object));
+            if (QualifiedRequestReturnType != void) {
+                newID = self.client.newID(I);
+                inline for (@typeInfo(Payload).Struct.fields) |field| {
+                    if (comptime wp.NewID.isEnum(field.type)) {
+                        @field(finalized_payload, field.name) = @enumFromInt(@intFromEnum(newID.?.object));
+                    }
                 }
             }
 
@@ -46,7 +49,7 @@ pub fn Proxy(I: type) type {
 
             if (QualifiedRequestReturnType != void) {
                 return QualifiedRequestReturnType{
-                    .object = @enumFromInt(@intFromEnum(new_object)),
+                    .object = @enumFromInt(@intFromEnum(newID.?.object)),
                     .client = self.client,
                 };
             }

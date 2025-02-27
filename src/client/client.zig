@@ -64,11 +64,15 @@ pub const Client = struct {
         self.socket.close();
     }
 
-    pub fn newObject(self: *Self) !wp.Object {
-        const id: wp.Object = @enumFromInt(self.next_id);
+    pub fn newID(self: *Self, Interface: type) wp.NewID {
+        const object: wp.Object = @enumFromInt(self.next_id);
         self.next_id += 1;
 
-        return id;
+        return .{
+            .interface = Interface.NAME,
+            .version = Interface.VERSION,
+            .object = object,
+        };
     }
 
     pub fn setEventListener(
