@@ -72,6 +72,7 @@ pub const Object = packed struct {
 
     const Self = @This();
     pub const Value = enum(Word) {
+        null = 0,
         display = 1,
         _,
     };
@@ -106,19 +107,6 @@ pub const NewID = struct {
         self.interface.serialize(buffer, offset);
         self.version.serialize(buffer, offset);
         self.object.serialize(buffer, offset);
-    }
-
-    pub fn withInterface(_Interface: type) type {
-        return enum(Word) {
-            _,
-
-            pub const Type = NewID;
-            pub const Interface = _Interface;
-        };
-    }
-
-    pub fn isEnum(T: type) bool {
-        return @typeInfo(T) == .Enum and @hasDecl(T, "Type") and T.Type == NewID;
     }
 };
 
@@ -158,10 +146,7 @@ pub fn Message(Payload: type) type {
                     Object,
                     NewID,
                     => size += @field(self.payload, field.name).computeSize(),
-                    else => switch (@typeInfo(field.type)) {
-                        .Enum => size += @sizeOf(Word),
-                        else => @compileError("cannot compute the size of the following field: " ++ field.name),
-                    },
+                    else => @compileError("cannot compute the size of the following field: " ++ field.name),
                 }
             }
 
@@ -182,10 +167,7 @@ pub fn Message(Payload: type) type {
                     Object,
                     NewID,
                     => @field(payload, field.name).serialize(buffer, &offset),
-                    else => switch (@typeInfo(field.type)) {
-                        .Enum => UInt.from(@intFromEnum(@field(payload, field.name))).serialize(buffer, &offset),
-                        else => @compileError("cannot serialize the following field: " ++ field.name),
-                    },
+                    else => @compileError("cannot serialize the following field: " ++ field.name),
                 }
             }
 
@@ -203,9 +185,7 @@ pub fn Message(Payload: type) type {
                     UInt,
                     String,
                     => @field(payload, field.name) = field.type.deserialize(buffer, &offset),
-                    else => switch (@typeInfo(field.type)) {
-                        else => @compileError("cannot deserialize the following field: " ++ field.name),
-                    },
+                    else => @compileError("cannot deserialize the following field: " ++ field.name),
                 }
             }
 

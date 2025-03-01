@@ -1,8 +1,6 @@
 const wp = @import("root.zig");
 
-pub const wl_display = enum(wp.Word) {
-    _,
-
+pub const wl_display = struct {
     pub const NAME = "wl_display";
     pub const VERSION = 1;
 
@@ -13,11 +11,17 @@ pub const wl_display = enum(wp.Word) {
         get_registry: GetRegistry,
 
         pub const Sync = struct {
-            callback: wp.NewID.withInterface(wl_callback) = @enumFromInt(0),
+            callback: wp.Object = .{ .value = .null },
+
+            pub const NewIDFieldName: ?[]const u8 = "callback";
+            pub const ResultInterface: ?type = wl_callback;
         };
 
         pub const GetRegistry = struct {
-            registry: wp.NewID.withInterface(wl_registry) = @enumFromInt(0),
+            registry: wp.Object = .{ .value = .null },
+
+            pub const NewIDFieldName: ?[]const u8 = "registry";
+            pub const ResultInterface: ?type = wl_registry;
         };
     };
 };
@@ -34,6 +38,9 @@ pub const wl_registry = enum(wp.Word) {
         pub const Bind = struct {
             name: wp.UInt,
             id: wp.NewID,
+
+            pub const NewIDFieldName: ?[]const u8 = null;
+            pub const ResultInterface: ?type = null;
         };
     };
 

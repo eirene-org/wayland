@@ -27,8 +27,10 @@ pub fn Proxy(I: type) type {
             if (QualifiedRequestReturnType != void) {
                 object = self.client.newObject();
                 inline for (@typeInfo(Payload).Struct.fields) |field| {
-                    if (comptime wp.NewID.isEnum(field.type)) {
+                    if (Payload.NewIDFieldName) |newIDFieldName| {
+                        if (comptime std.mem.eql(u8, field.name, newIDFieldName)) {
                             @field(finalized_payload, field.name) = object.?;
+                        }
                     }
                 }
             }
@@ -88,10 +90,6 @@ pub fn Proxy(I: type) type {
 
 fn RequestReturnType(Request: type, comptime opcode: std.meta.Tag(Request)) type {
     const Payload = std.meta.TagPayload(Request, opcode);
-    inline for (@typeInfo(Payload).Struct.fields) |field| {
-        if (wp.NewID.isEnum(field.type)) {
-            return Proxy(field.type.Interface);
-        }
-    }
+    if (Payload.ResultInterface) |Interface| return Proxy(Interface);
     return void;
 }
