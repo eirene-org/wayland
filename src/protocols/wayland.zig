@@ -11,14 +11,14 @@ pub const wl_display = struct {
         get_registry: GetRegistry,
 
         pub const Sync = struct {
-            callback: wp.Object = .{ .value = .null },
+            callback: wp.Object = .null,
 
             pub const NewIDFieldName: ?[]const u8 = "callback";
             pub const ResultInterface: ?type = wl_callback;
         };
 
         pub const GetRegistry = struct {
-            registry: wp.Object = .{ .value = .null },
+            registry: wp.Object = .null,
 
             pub const NewIDFieldName: ?[]const u8 = "registry";
             pub const ResultInterface: ?type = wl_registry;

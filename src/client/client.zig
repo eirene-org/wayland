@@ -55,7 +55,7 @@ pub const Client = struct {
 
         return .{
             .client = self,
-            .object = wp.Object.from(.display),
+            .object = .display,
         };
     }
 
@@ -75,7 +75,7 @@ pub const Client = struct {
     }
 
     pub fn newObject(self: *Self) wp.Object {
-        const object = wp.Object.from(@enumFromInt(self.next_id));
+        const object: wp.Object = @enumFromInt(self.next_id);
         self.next_id += 1;
 
         return object;

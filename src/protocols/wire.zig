@@ -67,26 +67,19 @@ pub const String = struct {
     }
 };
 
-pub const Object = packed struct {
-    value: Value,
+pub const Object = enum(Word) {
+    null = 0,
+    display = 1,
+    _,
 
     const Self = @This();
-    pub const Value = enum(Word) {
-        null = 0,
-        display = 1,
-        _,
-    };
-
-    pub fn from(value: Value) Self {
-        return .{ .value = value };
-    }
 
     pub fn computeSize(_: *const Self) Size {
-        return @sizeOf(Value);
+        return @sizeOf(Word);
     }
 
     pub fn serialize(self: *const Self, buffer: []u8, offset: *u16) void {
-        UInt.from(@intFromEnum(self.value)).serialize(buffer, offset);
+        UInt.from(@intFromEnum(self.*)).serialize(buffer, offset);
     }
 };
 
