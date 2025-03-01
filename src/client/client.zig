@@ -65,14 +65,20 @@ pub const Client = struct {
     }
 
     pub fn newID(self: *Self, Interface: type) wp.NewID {
-        const object = wp.Object.from(@enumFromInt(self.next_id));
-        self.next_id += 1;
+        const object = self.newObject();
 
         return .{
             .interface = wp.String.from(Interface.NAME),
             .version = wp.UInt.from(Interface.VERSION),
             .object = object,
         };
+    }
+
+    pub fn newObject(self: *Self) wp.Object {
+        const object = wp.Object.from(@enumFromInt(self.next_id));
+        self.next_id += 1;
+
+        return object;
     }
 
     pub fn setEventListener(
