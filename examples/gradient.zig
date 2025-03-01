@@ -27,7 +27,7 @@ fn onWLRegistryGlobalEvent(payload: wp.wl_registry.Event.Global, userdata: ?*any
 
             @field(globals, field.name) = .{
                 .client = globals.wl_registry.client,
-                .object = @enumFromInt(@intFromEnum(newID.object.value)),
+                .object = newID.object,
             };
         }
     }

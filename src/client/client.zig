@@ -55,7 +55,7 @@ pub const Client = struct {
 
         return .{
             .client = self,
-            .object = @enumFromInt(@intFromEnum(wp.Object.Value.display)),
+            .object = wp.Object.from(.display),
         };
     }
 

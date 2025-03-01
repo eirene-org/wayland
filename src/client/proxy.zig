@@ -7,7 +7,7 @@ const wl = @import("root.zig");
 pub fn Proxy(I: type) type {
     return struct {
         client: *wl.Client,
-        object: Interface,
+        object: wp.Object,
 
         const Self = @This();
 
@@ -21,15 +21,14 @@ pub fn Proxy(I: type) type {
             const Payload = std.meta.TagPayload(I.Request, opcode);
             const QualifiedRequestReturnType = RequestReturnType(I.Request, opcode);
 
-            var newID: ?wp.NewID = null;
+            var object: ?wp.Object = null;
 
             var finalized_payload: Payload = payload;
             if (QualifiedRequestReturnType != void) {
-                newID = self.client.newID(I);
+                object = self.client.newObject();
                 inline for (@typeInfo(Payload).Struct.fields) |field| {
                     if (comptime wp.NewID.isEnum(field.type)) {
-                        @field(finalized_payload, field.name) =
-                            @enumFromInt(@intFromEnum(newID.?.object.value));
+                            @field(finalized_payload, field.name) = object.?;
                     }
                 }
             }
@@ -37,7 +36,7 @@ pub fn Proxy(I: type) type {
             const Message = wp.Message(Payload);
             var message = Message.init(
                 .{
-                    .id = wp.Object.from(@enumFromInt(@intFromEnum(self.object))),
+                    .id = self.object,
                     .opcode = @intFromEnum(opcode),
                 },
                 finalized_payload,
@@ -51,7 +50,7 @@ pub fn Proxy(I: type) type {
             if (QualifiedRequestReturnType != void) {
                 return QualifiedRequestReturnType{
                     .client = self.client,
-                    .object = @enumFromInt(@intFromEnum(newID.?.object.value)),
+                    .object = object.?,
                 };
             }
         }
@@ -65,7 +64,7 @@ pub fn Proxy(I: type) type {
             const Payload = std.meta.TagPayload(I.Event, opcode);
 
             const eventID = wl.EventID{
-                .object = wp.Object.from(@enumFromInt(@intFromEnum(self.object))),
+                .object = self.object,
                 .opcode = @intFromEnum(opcode),
             };
 
