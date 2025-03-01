@@ -68,8 +68,8 @@ pub const Client = struct {
         const object = self.newObject();
 
         return .{
-            .interface = wp.String.from(Interface.NAME),
-            .version = wp.UInt.from(Interface.VERSION),
+            .interface = Interface.NAME,
+            .version = Interface.VERSION,
             .object = object,
         };
     }

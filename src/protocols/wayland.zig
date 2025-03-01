@@ -1,8 +1,8 @@
 const wp = @import("root.zig");
 
 pub const wl_display = struct {
-    pub const NAME = "wl_display";
-    pub const VERSION = 1;
+    pub const NAME = wp.String.from("wl_display");
+    pub const VERSION = wp.UInt.from(1);
 
     const Self = @This();
 
@@ -29,8 +29,8 @@ pub const wl_display = struct {
 pub const wl_registry = enum(wp.Word) {
     _,
 
-    pub const NAME = "wl_registry";
-    pub const VERSION = 1;
+    pub const NAME = wp.String.from("wl_registry");
+    pub const VERSION = wp.UInt.from(1);
 
     pub const Request = union(enum(wp.Opcode)) {
         bind: Request.Bind,
@@ -58,8 +58,8 @@ pub const wl_registry = enum(wp.Word) {
 pub const wl_callback = enum(wp.Word) {
     _,
 
-    pub const NAME = "wl_callback";
-    pub const VERSION = 1;
+    pub const NAME = wp.String.from("wl_callback");
+    pub const VERSION = wp.UInt.from(1);
 
     pub const Event = union(enum(wp.Opcode)) {
         done: Event.Done,
@@ -73,13 +73,13 @@ pub const wl_callback = enum(wp.Word) {
 pub const wl_compositor = enum(wp.Word) {
     _,
 
-    pub const NAME = "wl_compositor";
-    pub const VERSION = 6;
+    pub const NAME = wp.String.from("wl_compositor");
+    pub const VERSION = wp.UInt.from(6);
 };
 
 pub const wl_shm = enum(wp.Word) {
     _,
 
-    pub const NAME = "wl_shm";
-    pub const VERSION = 2;
+    pub const NAME = wp.String.from("wl_shm");
+    pub const VERSION = wp.UInt.from(2);
 };
