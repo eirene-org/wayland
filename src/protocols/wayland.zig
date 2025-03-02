@@ -26,9 +26,8 @@ pub const wl_display = struct {
     };
 };
 
-pub const wl_registry = enum(wp.Word) {
-    _,
 
+pub const wl_registry = struct {
     pub const NAME = wp.String.from("wl_registry");
     pub const VERSION = wp.UInt.from(1);
 
@@ -55,9 +54,7 @@ pub const wl_registry = enum(wp.Word) {
     };
 };
 
-pub const wl_callback = enum(wp.Word) {
-    _,
-
+pub const wl_callback = struct {
     pub const NAME = wp.String.from("wl_callback");
     pub const VERSION = wp.UInt.from(1);
 
@@ -70,16 +67,13 @@ pub const wl_callback = enum(wp.Word) {
     };
 };
 
-pub const wl_compositor = enum(wp.Word) {
-    _,
-
+pub const wl_compositor = struct {
     pub const NAME = wp.String.from("wl_compositor");
     pub const VERSION = wp.UInt.from(6);
 };
 
-pub const wl_shm = enum(wp.Word) {
-    _,
 
+pub const wl_shm = struct {
     pub const NAME = wp.String.from("wl_shm");
     pub const VERSION = wp.UInt.from(2);
 };
