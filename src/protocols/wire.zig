@@ -136,6 +136,7 @@ pub fn Message(Payload: type) type {
             inline for (std.meta.fields(Payload)) |field| {
                 switch (field.type) {
                     UInt,
+                    String,
                     Object,
                     NewID,
                     => size += @field(self.payload, field.name).computeSize(),
@@ -157,6 +158,7 @@ pub fn Message(Payload: type) type {
             inline for (std.meta.fields(Payload)) |field| {
                 switch (field.type) {
                     UInt,
+                    String,
                     Object,
                     NewID,
                     => @field(payload, field.name).serialize(buffer, &offset),
