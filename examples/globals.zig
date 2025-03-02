@@ -3,7 +3,7 @@ const std = @import("std");
 const wc = @import("wayland-client");
 const wp = @import("wayland-protocols");
 
-fn onWLRegistryGlobalEvent(payload: wp.wl_registry.Event.Global, userdata: ?*anyopaque) void {
+fn onWlRegistryGlobalEvent(payload: wp.wl_registry.Event.Global, userdata: ?*anyopaque) void {
     _ = userdata;
 
     std.debug.print("{}\t{}\t{s}\n", .{ payload.name.value, payload.version.value, payload.interface.value });
@@ -30,7 +30,7 @@ pub fn main() !void {
     const wl_registry = try wl_display.request(.get_registry, .{});
     const wl_callback = try wl_display.request(.sync, .{});
 
-    try wl_registry.listen(.global, onWLRegistryGlobalEvent, null);
+    try wl_registry.listen(.global, onWlRegistryGlobalEvent, null);
 
     var registration_done = false;
     try wl_callback.listen(.done, onWLCallbackDoneEvent, &registration_done);

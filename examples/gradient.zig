@@ -11,7 +11,7 @@ const Globals = struct {
     xdg_wm_base: ?wc.Proxy(wp.xdg_wm_base) = null,
 };
 
-fn onWLRegistryGlobalEvent(payload: wp.wl_registry.Event.Global, userdata: ?*anyopaque) void {
+fn onWlRegistryGlobalEvent(payload: wp.wl_registry.Event.Global, userdata: ?*anyopaque) void {
     const globals: *Globals = @alignCast(@ptrCast(userdata));
 
     inline for (@typeInfo(Globals).Struct.fields[1..]) |field| blk: {
@@ -33,7 +33,7 @@ fn onWLRegistryGlobalEvent(payload: wp.wl_registry.Event.Global, userdata: ?*any
     }
 }
 
-fn onWLCallbackDoneEvent(payload: wp.wl_callback.Event.Done, userdata: ?*anyopaque) void {
+fn onWlCallbackDoneEvent(payload: wp.wl_callback.Event.Done, userdata: ?*anyopaque) void {
     _ = payload;
 
     const registration_done: *bool = @ptrCast(userdata.?);
@@ -55,10 +55,10 @@ pub fn main() !void {
     const wl_callback = try wl_display.request(.sync, .{});
 
     var globals = Globals{ .wl_registry = wl_registry };
-    try wl_registry.listen(.global, onWLRegistryGlobalEvent, &globals);
+    try wl_registry.listen(.global, onWlRegistryGlobalEvent, &globals);
 
     var registration_done = false;
-    try wl_callback.listen(.done, onWLCallbackDoneEvent, &registration_done);
+    try wl_callback.listen(.done, onWlCallbackDoneEvent, &registration_done);
 
     while (!registration_done) {
         try client.dispatchMessage();
