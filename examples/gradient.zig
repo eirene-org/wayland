@@ -40,6 +40,26 @@ fn onWlCallbackDoneEvent(payload: wp.wl_callback.Event.Done, userdata: ?*anyopaq
     registration_done.* = true;
 }
 
+fn onXdgWmBasePingEvent(payload: wp.xdg_wm_base.Event.Ping, userdata: ?*anyopaque) void {
+    const globals: *Globals = @alignCast(@ptrCast(userdata.?));
+
+    globals.xdg_wm_base.?.request(.pong, .{ .serial = payload.serial }) catch {};
+}
+
+const XdgSurfaceConfigureEventUserdata = struct {
+    xdg_surface: *const wc.Proxy(wp.xdg_surface),
+    configured: bool = false,
+};
+
+fn onXdgSurfaceConfigureEvent(payload: wp.xdg_surface.Event.Configure, optional_userdata: ?*anyopaque) void {
+    const userdata: *XdgSurfaceConfigureEventUserdata = @alignCast(@ptrCast(optional_userdata.?));
+
+    std.debug.print("the xdg surface is configured\n", .{});
+
+    userdata.xdg_surface.request(.ack_configure, .{ .serial = payload.serial }) catch {};
+    userdata.configured = true;
+}
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -67,4 +87,23 @@ pub fn main() !void {
     std.debug.print("wl_shm: {}\n", .{globals.wl_shm != null});
     std.debug.print("wl_compositor: {}\n", .{globals.wl_compositor != null});
     std.debug.print("xdg_wm_base: {}\n", .{globals.xdg_wm_base != null});
+
+    const wl_surface = try globals.wl_compositor.?.request(.create_surface, .{});
+    const xdg_surface = try globals.xdg_wm_base.?.request(.get_xdg_surface, .{ .surface = wl_surface.object });
+    const xdg_toplevel = try xdg_surface.request(.get_toplevel, .{});
+
+    try wl_surface.request(.commit, .{});
+
+    try globals.xdg_wm_base.?.listen(.ping, onXdgWmBasePingEvent, &globals);
+
+    var xdgSurfaceConfigureEventUserdata = XdgSurfaceConfigureEventUserdata{
+        .xdg_surface = &xdg_surface,
+    };
+    try xdg_surface.listen(.configure, onXdgSurfaceConfigureEvent, &xdgSurfaceConfigureEventUserdata);
+
+    while (!xdgSurfaceConfigureEventUserdata.configured) {
+        try client.dispatchMessage();
+    }
+
+    _ = xdg_toplevel;
 }
