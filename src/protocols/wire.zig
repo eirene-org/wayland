@@ -81,6 +81,11 @@ pub const Object = enum(Word) {
     pub fn serialize(self: *const Self, buffer: []u8, offset: *u16) void {
         UInt.from(@intFromEnum(self.*)).serialize(buffer, offset);
     }
+
+    pub fn deserialize(buffer: []const u8, offset: *u16) Self {
+        const uint = UInt.deserialize(buffer, offset);
+        return @enumFromInt(uint.value);
+    }
 };
 
 pub const NewID = struct {
@@ -179,6 +184,7 @@ pub fn Message(Payload: type) type {
                 switch (field.type) {
                     UInt,
                     String,
+                    Object,
                     => @field(payload, field.name) = field.type.deserialize(buffer, &offset),
                     else => @compileError("cannot deserialize the following field: " ++ field.name),
                 }
