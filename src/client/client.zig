@@ -90,20 +90,30 @@ pub const Client = struct {
     }
 
     pub fn dispatchMessage(self: *Self) !void {
-        const header_slice = self.buffer[0..@sizeOf(wp.Header)];
-        const bytes_read = try self.socket.readAll(header_slice);
+        const header_size = @sizeOf(wp.Header);
 
-        if (bytes_read < @sizeOf(wp.Header)) {
+        const header_slice = self.buffer[0..header_size];
+        const header_bytes_read = try self.socket.readAll(header_slice);
+
+        if (header_bytes_read < header_size) {
             return error.EOF;
         }
 
         const header: *const wp.Header = @ptrCast(@alignCast(header_slice));
 
+        const payload_size = header.size - header_size;
+
+        if (payload_size > 0) {
+            const payload_slice = self.buffer[header_size..][0..payload_size];
+            const payload_bytes_read = try self.socket.readAll(payload_slice);
+
+            if (payload_bytes_read < payload_size) {
+                return error.EOF;
+            }
+        }
+
         const eventId = EventID{ .object = header.id, .opcode = header.opcode };
         const eventListener = self.eventListeners.get(eventId) orelse return;
-
-        const payload_slice = self.buffer[@sizeOf(wp.Header)..header.size];
-        _ = try self.socket.readAll(payload_slice);
 
         const message_slice = self.buffer[0..header.size];
         eventListener.call(message_slice);
