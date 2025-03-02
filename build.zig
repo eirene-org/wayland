@@ -5,6 +5,7 @@ const BuildManagerOptions = struct {
     optimize: std.builtin.OptimizeMode,
     use_llvm: ?bool,
     strip: ?bool,
+    error_tracing: ?bool,
 };
 
 const BuildManagerModules = struct {
@@ -36,12 +37,14 @@ const BuildManager = struct {
 
         const use_llvm = b.option(bool, "use_llvm", "Use the LLVM backend") orelse !is_debug_mode;
         const strip = b.option(bool, "strip", "Strip debug symbols") orelse !is_debug_mode;
+        const error_tracing = is_debug_mode and use_llvm;
 
         return .{
             .target = target,
             .optimize = optimize,
             .use_llvm = use_llvm,
             .strip = strip,
+            .error_tracing = error_tracing,
         };
     }
 
@@ -101,6 +104,7 @@ const BuildManager = struct {
                 .use_lld = self.options.use_llvm,
                 .use_llvm = self.options.use_llvm,
                 .strip = self.options.strip,
+                .error_tracing = self.options.error_tracing,
             });
             example.root_module.addImport("wayland-client", self.modules.wayland_client);
             example.root_module.addImport("wayland-protocols", self.modules.wayland_protocols);
