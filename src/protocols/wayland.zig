@@ -24,8 +24,17 @@ pub const wl_display = struct {
             pub const ResultInterface: ?type = wl_registry;
         };
     };
-};
 
+    pub const Event = union(enum(wp.Opcode)) {
+        @"error": Event.Error,
+
+        pub const Error = struct {
+            object_id: wp.Object,
+            code: wp.UInt,
+            message: wp.String,
+        };
+    };
+};
 
 pub const wl_registry = struct {
     pub const NAME = wp.String.from("wl_registry");
@@ -70,10 +79,34 @@ pub const wl_callback = struct {
 pub const wl_compositor = struct {
     pub const NAME = wp.String.from("wl_compositor");
     pub const VERSION = wp.UInt.from(6);
-};
 
+    pub const Request = union(enum(wp.Opcode)) {
+        create_surface: Request.CreateSurface,
+
+        pub const CreateSurface = struct {
+            id: wp.Object = .null,
+
+            pub const NewIDFieldName: ?[]const u8 = "id";
+            pub const ResultInterface: ?type = wl_surface;
+        };
+    };
+};
 
 pub const wl_shm = struct {
     pub const NAME = wp.String.from("wl_shm");
     pub const VERSION = wp.UInt.from(2);
+};
+
+pub const wl_surface = struct {
+    pub const NAME = wp.String.from("wl_surface");
+    pub const VERSION = wp.UInt.from(6);
+
+    pub const Request = union(enum(wp.Opcode)) {
+        commit: Request.Commit = 6,
+
+        pub const Commit = struct {
+            pub const NewIDFieldName: ?[]const u8 = null;
+            pub const ResultInterface: ?type = null;
+        };
+    };
 };
