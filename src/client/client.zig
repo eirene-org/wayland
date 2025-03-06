@@ -120,6 +120,21 @@ pub const Client = struct {
     }
 
     pub fn request(self: *const Self, bytes: []const u8) !void {
-        try self.socket.writeAll(bytes);
+        const iov = [_]std.posix.iovec_const{.{
+            .base = bytes.ptr,
+            .len = bytes.len,
+        }};
+
+        const msg = std.posix.msghdr_const{
+            .name = null,
+            .namelen = 0,
+            .iov = &iov,
+            .iovlen = iov.len,
+            .control = null,
+            .controllen = 0,
+            .flags = 0,
+        };
+
+        _ = try std.posix.sendmsg(self.socket.handle, &msg, 0);
     }
 };
