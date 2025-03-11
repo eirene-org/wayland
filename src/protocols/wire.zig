@@ -15,7 +15,7 @@ pub const UInt = packed struct {
     }
 
     pub fn computeSize(_: *const Self) Size {
-        return @sizeOf(Value);
+        return @sizeOf(Word);
     }
 
     pub fn serialize(self: *const Self, buffer: []u8, offset: *u16) void {
