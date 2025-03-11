@@ -24,7 +24,7 @@ pub const UInt = packed struct {
     }
 
     pub fn deserialize(buffer: []const u8, offset: *u16) Self {
-        const value = std.mem.bytesToValue(Value, buffer[offset.*..][0..@sizeOf(Word)]);
+        const value = std.mem.bytesToValue(Value, buffer[offset.*..][0..@sizeOf(Value)]);
         offset.* += @sizeOf(Value);
 
         return UInt.from(value);
