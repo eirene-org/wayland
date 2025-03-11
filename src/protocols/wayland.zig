@@ -92,9 +92,55 @@ pub const wl_compositor = struct {
     };
 };
 
+pub const wl_shm_pool = struct {
+    pub const NAME = wp.String.from("wl_shm_pool");
+    pub const VERSION = wp.UInt.from(2);
+
+    pub const Request = union(enum(wp.Opcode)) {
+        create_buffer: Request.CreateBuffer,
+
+        pub const CreateBuffer = struct {
+            id: wp.Object = .null,
+            offset: wp.Int,
+            width: wp.Int,
+            height: wp.Int,
+            stride: wp.Int,
+            format: wp.UInt,
+
+            pub const NewIDFieldName: ?[]const u8 = "id";
+            pub const ResultInterface: ?type = wl_buffer;
+        };
+    };
+};
+
 pub const wl_shm = struct {
     pub const NAME = wp.String.from("wl_shm");
     pub const VERSION = wp.UInt.from(2);
+
+    pub const Request = union(enum(wp.Opcode)) {
+        create_pool: Request.CreatePool,
+
+        pub const CreatePool = struct {
+            id: wp.Object = .null,
+            fd: wp.Fd,
+            size: wp.Int,
+
+            pub const NewIDFieldName: ?[]const u8 = "id";
+            pub const ResultInterface: ?type = wl_shm_pool;
+        };
+    };
+
+    pub const Enum = struct {
+        pub const Format = struct {
+            pub const argb8888 = wp.UInt.from(0);
+            pub const xrgb8888 = wp.UInt.from(1);
+        };
+    };
+};
+
+pub const wl_buffer = struct {
+    pub const NAME = wp.String.from("wl_buffer");
+    pub const VERSION = wp.UInt.from(1);
 };
 
 pub const wl_surface = struct {
@@ -102,7 +148,28 @@ pub const wl_surface = struct {
     pub const VERSION = wp.UInt.from(6);
 
     pub const Request = union(enum(wp.Opcode)) {
+        attach: Request.Attach = 1,
+        damage: Request.Damage,
         commit: Request.Commit = 6,
+
+        pub const Attach = struct {
+            buffer: wp.Object,
+            x: wp.Int,
+            y: wp.Int,
+
+            pub const NewIDFieldName: ?[]const u8 = null;
+            pub const ResultInterface: ?type = null;
+        };
+
+        pub const Damage = struct {
+            x: wp.Int,
+            y: wp.Int,
+            width: wp.Int,
+            height: wp.Int,
+
+            pub const NewIDFieldName: ?[]const u8 = null;
+            pub const ResultInterface: ?type = null;
+        };
 
         pub const Commit = struct {
             pub const NewIDFieldName: ?[]const u8 = null;
