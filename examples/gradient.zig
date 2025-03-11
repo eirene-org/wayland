@@ -54,8 +54,6 @@ const XdgSurfaceConfigureEventUserdata = struct {
 fn onXdgSurfaceConfigureEvent(payload: wp.xdg_surface.Event.Configure, optional_userdata: ?*anyopaque) void {
     const userdata: *XdgSurfaceConfigureEventUserdata = @alignCast(@ptrCast(optional_userdata.?));
 
-    std.debug.print("the xdg surface is configured\n", .{});
-
     userdata.xdg_surface.request(.ack_configure, .{ .serial = payload.serial }) catch {};
     userdata.configured = true;
 }
@@ -106,4 +104,56 @@ pub fn main() !void {
     }
 
     _ = xdg_toplevel;
+
+    const width = 256;
+    const height = width;
+    const pixel_size = 4;
+    const stride = width * pixel_size;
+    const framebuffer_size = stride * height;
+    const pool_size = framebuffer_size * 2;
+
+    const pool_fd = try std.posix.memfd_create("shm_pool", 0);
+    try std.posix.ftruncate(pool_fd, pool_size);
+
+    const wl_shm_pool = try globals.wl_shm.?.request(.create_pool, .{
+        .fd = wp.Fd.from(pool_fd),
+        .size = wp.Int.from(pool_size),
+    });
+
+    const index = 0;
+    const offset = framebuffer_size * index;
+    const wl_buffer = try wl_shm_pool.request(.create_buffer, .{
+        .offset = wp.Int.from(offset),
+        .width = wp.Int.from(width),
+        .height = wp.Int.from(height),
+        .stride = wp.Int.from(stride),
+        .format = wp.wl_shm.Enum.Format.argb8888,
+    });
+
+    const pool_data = try std.posix.mmap(
+        null,
+        pool_size,
+        std.posix.PROT.READ | std.posix.PROT.WRITE,
+        .{ .TYPE = .SHARED },
+        pool_fd,
+        0,
+    );
+    @memset(pool_data, 0xFF);
+
+    try wl_surface.request(.attach, .{
+        .buffer = wl_buffer.object,
+        .x = wp.Int.from(0),
+        .y = wp.Int.from(0),
+    });
+    try wl_surface.request(.damage, .{
+        .x = wp.Int.from(0),
+        .y = wp.Int.from(0),
+        .width = wp.Int.from(0),
+        .height = wp.Int.from(0),
+    });
+    try wl_surface.request(.commit, .{});
+
+    while (true) {
+        try client.dispatchMessage();
+    }
 }
