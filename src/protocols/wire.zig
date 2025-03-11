@@ -27,7 +27,7 @@ pub const UInt = packed struct {
         const value = std.mem.bytesToValue(Value, buffer[offset.*..][0..@sizeOf(Value)]);
         offset.* += @sizeOf(Value);
 
-        return UInt.from(value);
+        return Self.from(value);
     }
 };
 
@@ -63,7 +63,7 @@ pub const String = struct {
         const aligned_size = std.mem.alignForward(u16, len, @sizeOf(Word));
         offset.* += aligned_size;
 
-        return String.from(value);
+        return Self.from(value);
     }
 };
 
