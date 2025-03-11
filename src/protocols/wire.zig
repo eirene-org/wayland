@@ -135,6 +135,21 @@ pub const NewID = struct {
     }
 };
 
+pub const Fd = struct {
+    value: Value,
+
+    const Self = @This();
+    pub const Value = std.posix.fd_t;
+
+    pub inline fn from(value: Value) Self {
+        return .{ .value = value };
+    }
+
+    pub fn computeSize(_: *const Self) Size {
+        return @sizeOf(Word);
+    }
+};
+
 pub const Opcode = HalfWord;
 pub const Size = HalfWord;
 
@@ -146,6 +161,39 @@ pub const Header = packed struct {
     pub fn serialize(self: *const Header, buffer: []u8, offset: *u16) void {
         std.mem.copyForwards(u8, buffer[offset.*..], std.mem.asBytes(self));
         offset.* += @sizeOf(Header);
+    }
+};
+
+pub const ControlMessage = struct {
+    header: ControlMessage.Header = .{},
+    payload: ControlMessage.Payload align(@sizeOf(ControlMessage.Header)),
+
+    const Self = @This();
+
+    pub const Header = struct {
+        len: c_ulong = @sizeOf(c_ulong) + 2 * @sizeOf(c_int) + @sizeOf(ControlMessage.Payload),
+        level: c_int = std.posix.SOL.SOCKET,
+        type: c_int = SCM_RIGHTS,
+
+        const SCM_RIGHTS = 0x01;
+    };
+
+    pub const Payload = Fd;
+
+    pub fn serialize(self: *const Self) []const u8 {
+        return std.mem.asBytes(self);
+    }
+};
+
+pub const SerializedMessage = struct {
+    allocator: std.mem.Allocator,
+    bytes: []const u8,
+    fd: ?Fd,
+
+    const Self = @This();
+
+    pub fn deinit(self: *const Self) void {
+        self.allocator.free(self.bytes);
     }
 };
 
@@ -172,6 +220,7 @@ pub fn Message(Payload: type) type {
                     String,
                     Object,
                     NewID,
+                    Fd,
                     => size += @field(self.payload, field.name).computeSize(),
                     else => @compileError("cannot compute the size of the following field: " ++ field.name),
                 }
@@ -180,12 +229,14 @@ pub fn Message(Payload: type) type {
             self.header.size = size;
         }
 
-        pub fn serialize(self: *const Self, allocator: std.mem.Allocator) ![]const u8 {
+        pub fn serialize(self: *const Self, allocator: std.mem.Allocator) !SerializedMessage {
             const buffer = try allocator.alloc(u8, self.header.size);
             errdefer allocator.free(buffer);
 
             var offset: u16 = 0;
             self.header.serialize(buffer, &offset);
+
+            var fd: ?Fd = null;
 
             const payload = &self.payload;
             inline for (std.meta.fields(Payload)) |field| {
@@ -196,11 +247,13 @@ pub fn Message(Payload: type) type {
                     Object,
                     NewID,
                     => @field(payload, field.name).serialize(buffer, &offset),
+                    Fd,
+                    => fd = @field(payload, field.name),
                     else => @compileError("cannot serialize the following field: " ++ field.name),
                 }
             }
 
-            return buffer;
+            return .{ .allocator = allocator, .bytes = buffer, .fd = fd };
         }
 
         pub fn deserialize(buffer: []const u8) Self {

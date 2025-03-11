@@ -119,22 +119,32 @@ pub const Client = struct {
         eventListener.call(message_slice);
     }
 
-    pub fn request(self: *const Self, bytes: []const u8) !void {
+    pub fn request(self: *const Self, serializedMessage: wp.SerializedMessage) !void {
         const iov = [_]std.posix.iovec_const{.{
-            .base = bytes.ptr,
-            .len = bytes.len,
+            .base = serializedMessage.bytes.ptr,
+            .len = serializedMessage.bytes.len,
         }};
 
-        const msg = std.posix.msghdr_const{
+        var control: ?*const anyopaque = null;
+        var controllen: std.posix.socklen_t = 0;
+
+        if (serializedMessage.fd) |fd| {
+            const control_message = wp.ControlMessage{ .payload = fd };
+            const control_bytes = control_message.serialize();
+            control = control_bytes.ptr;
+            controllen = @intCast(control_bytes.len);
+        }
+
+        const msghdr = std.posix.msghdr_const{
             .name = null,
             .namelen = 0,
             .iov = &iov,
             .iovlen = iov.len,
-            .control = null,
-            .controllen = 0,
+            .control = control,
+            .controllen = controllen,
             .flags = 0,
         };
 
-        _ = try std.posix.sendmsg(self.socket.handle, &msg, 0);
+        _ = try std.posix.sendmsg(self.socket.handle, &msghdr, 0);
     }
 };

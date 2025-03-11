@@ -44,10 +44,10 @@ pub fn Proxy(I: type) type {
                 finalized_payload,
             );
 
-            const messageBytes = try message.serialize(self.client.allocator);
-            defer self.client.allocator.free(messageBytes);
+            const serializedMessage = try message.serialize(self.client.allocator);
+            defer serializedMessage.deinit();
 
-            try self.client.request(messageBytes);
+            try self.client.request(serializedMessage);
 
             if (QualifiedRequestReturnType != void) {
                 return QualifiedRequestReturnType{
