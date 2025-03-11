@@ -4,6 +4,33 @@ pub const HalfWord = u16;
 
 pub const Word = u32;
 
+pub const Int = packed struct {
+    value: Value,
+
+    const Self = @This();
+    pub const Value = i32;
+
+    pub inline fn from(value: Value) Self {
+        return .{ .value = value };
+    }
+
+    pub fn computeSize(_: *const Self) Size {
+        return @sizeOf(Word);
+    }
+
+    pub fn serialize(self: *const Self, buffer: []u8, offset: *u16) void {
+        std.mem.copyForwards(u8, buffer[offset.*..], std.mem.asBytes(&self.value));
+        offset.* += @sizeOf(Value);
+    }
+
+    pub fn deserialize(buffer: []const u8, offset: *u16) Self {
+        const value = std.mem.bytesToValue(Value, buffer[offset.*..][0..@sizeOf(Value)]);
+        offset.* += @sizeOf(Value);
+
+        return Self.from(value);
+    }
+};
+
 pub const UInt = packed struct {
     value: Value,
 
@@ -140,6 +167,7 @@ pub fn Message(Payload: type) type {
 
             inline for (std.meta.fields(Payload)) |field| {
                 switch (field.type) {
+                    Int,
                     UInt,
                     String,
                     Object,
@@ -162,6 +190,7 @@ pub fn Message(Payload: type) type {
             const payload = &self.payload;
             inline for (std.meta.fields(Payload)) |field| {
                 switch (field.type) {
+                    Int,
                     UInt,
                     String,
                     Object,
