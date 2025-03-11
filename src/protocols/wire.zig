@@ -8,7 +8,7 @@ pub const UInt = packed struct {
     value: Value,
 
     const Self = @This();
-    pub const Value = Word;
+    pub const Value = u32;
 
     pub inline fn from(value: Value) Self {
         return .{ .value = value };
