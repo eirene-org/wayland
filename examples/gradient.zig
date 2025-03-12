@@ -58,6 +58,20 @@ fn onXdgSurfaceConfigureEvent(payload: wp.xdg_surface.Event.Configure, optional_
     userdata.configured = true;
 }
 
+fn hueToRgb(colors: *[3]u8, fraction: f32) void {
+    const f = std.math.clamp(fraction, 0, 1);
+    const h = f * 6;
+
+    const r = std.math.clamp(@abs(h - 3) - 1, 0, 1);
+    const g = std.math.clamp(2 - @abs(h - 2), 0, 1);
+    const b = std.math.clamp(2 - @abs(h - 4), 0, 1);
+
+    const brightness = 1;
+    colors[0] = @intFromFloat(r * 255 * brightness);
+    colors[1] = @intFromFloat(g * 255 * brightness);
+    colors[2] = @intFromFloat(b * 255 * brightness);
+}
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -138,7 +152,29 @@ pub fn main() !void {
         pool_fd,
         0,
     );
-    @memset(pool_data, 0xFF);
+
+    const framebuffer_data = pool_data[offset..][0..framebuffer_size];
+    const width_f32: f32 = @floatFromInt(width);
+    const height_f32: f32 = @floatFromInt(height);
+    const x_center_f32 = width_f32 / 2;
+    const y_center_f32 = height_f32 / 2;
+    for (0..width) |x| {
+        for (0..height) |y| {
+            const x_f32: f32 = @floatFromInt(x);
+            const y_f32: f32 = @floatFromInt(y);
+            const i = (x + y * width) * 4;
+            const pixel = framebuffer_data[i..][0..4];
+            const colors = pixel[0..3];
+            const distance: f32 = std.math.hypot(x_f32 - x_center_f32, y_f32 - y_center_f32);
+            const ring_width = 40;
+            const distance_normalized = distance / ring_width;
+            const distance_adjusted = distance_normalized + 0.2;
+            const fraction = distance_adjusted - @floor(distance_adjusted);
+            hueToRgb(colors, fraction);
+
+            pixel[3] = 0xFF;
+        }
+    }
 
     try wl_surface.request(.attach, .{
         .buffer = wl_buffer.object,
