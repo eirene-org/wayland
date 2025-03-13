@@ -58,62 +58,76 @@ fn onXdgSurfaceConfigureEvent(payload: wp.xdg_surface.Event.Configure, optional_
     userdata.configured = true;
 }
 
-fn translate(x: *f32, y: *f32, delta_x: f32, delta_y: f32) void {
-    x.* += delta_x;
-    y.* += delta_y;
-}
-
-fn rotate(x: *f32, y: *f32, angle: f32) void {
-    const x_o = x.*;
-    const y_o = y.*;
-
-    const radians = std.math.degreesToRadians(angle);
-
-    x.* = x_o * @cos(radians) - y_o * @sin(radians);
-    y.* = x_o * @sin(radians) + y_o * @cos(radians);
-}
-
-fn lerp(colors: *[3]u8, k: f32) void {
-    const step_colors: [2][3]u8 = .{
+const Gradient = struct {
+    step_colors: [2][3]u8 = .{
         .{ 0x00, 0x00, 0xFF },
         .{ 0xFF, 0x00, 0x00 },
-    };
+    },
 
-    for (0..colors.len) |j| {
-        const a: f32 = @floatFromInt(step_colors[0][j]);
-        const b: f32 = @floatFromInt(step_colors[1][j]);
-        const interpolated_color = a + (b - a) * k;
-        colors[j] = @intFromFloat(interpolated_color);
+    const Self = @This();
+
+    fn translate(x: *f32, y: *f32, delta_x: f32, delta_y: f32) void {
+        x.* += delta_x;
+        y.* += delta_y;
     }
-}
 
-fn render(width: comptime_int, height: comptime_int, data: *[width * height * 4]u8) void {
-    const width_f32: f32 = @floatFromInt(width);
-    const height_f32: f32 = @floatFromInt(height);
+    fn rotate(x: *f32, y: *f32, angle: f32) void {
+        const x_o = x.*;
+        const y_o = y.*;
 
-    const mx = width_f32 / 2;
-    const my = height_f32 / 2;
+        const radians = std.math.degreesToRadians(angle);
 
-    for (0..width) |x| {
-        for (0..height) |y| {
-            const i = (x + y * width) * 4;
-            const pixel = data[i..][0..4];
-            const colors = pixel[0..3];
+        x.* = x_o * @cos(radians) - y_o * @sin(radians);
+        y.* = x_o * @sin(radians) + y_o * @cos(radians);
+    }
 
-            var x_f32: f32 = @floatFromInt(x);
-            var y_f32: f32 = @floatFromInt(y);
-
-            translate(&x_f32, &y_f32, -mx, -my);
-            rotate(&x_f32, &y_f32, 45);
-            translate(&x_f32, &y_f32, mx, my);
-
-            const k = std.math.clamp(x_f32 / width, 0, 1);
-            lerp(colors, k);
-
-            pixel[3] = 0xFF;
+    fn lerp(self: *const Self, colors: *[3]u8, k: f32) void {
+        for (0..colors.len) |j| {
+            const a: f32 = @floatFromInt(self.step_colors[0][j]);
+            const b: f32 = @floatFromInt(self.step_colors[1][j]);
+            const interpolated_color = a + (b - a) * k;
+            colors[j] = @intFromFloat(interpolated_color);
         }
     }
-}
+
+    fn next(self: *Self) void {
+        for (&self.step_colors) |*step_color| {
+            const color = step_color[0];
+            step_color[0] = ~color;
+            step_color[2] = color;
+        }
+    }
+
+    fn render(self: *const Self, width: comptime_int, height: comptime_int, data: *[width * height * 4]u8) void {
+        const width_f32: f32 = @floatFromInt(width);
+        const height_f32: f32 = @floatFromInt(height);
+
+        const mx = width_f32 / 2;
+        const my = height_f32 / 2;
+
+        for (0..width) |x| {
+            for (0..height) |y| {
+                const i = (x + y * width) * 4;
+                const pixel = data[i..][0..4];
+                const colors = pixel[0..3];
+
+                var x_f32: f32 = @floatFromInt(x);
+                var y_f32: f32 = @floatFromInt(y);
+
+                translate(&x_f32, &y_f32, -mx, -my);
+                rotate(&x_f32, &y_f32, 45);
+                translate(&x_f32, &y_f32, mx, my);
+
+                const k = std.math.clamp(x_f32 / width, 0, 1);
+                self.lerp(colors, k);
+
+                pixel[3] = 0xFF;
+            }
+        }
+    }
+};
+
+const Buffers = [2]wc.Proxy(wp.wl_buffer);
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -177,16 +191,6 @@ pub fn main() !void {
         .size = wp.Int.from(pool_size),
     });
 
-    const index = 0;
-    const offset = framebuffer_size * index;
-    const wl_buffer = try wl_shm_pool.request(.create_buffer, .{
-        .offset = wp.Int.from(offset),
-        .width = wp.Int.from(width),
-        .height = wp.Int.from(height),
-        .stride = wp.Int.from(stride),
-        .format = wp.wl_shm.Enum.Format.argb8888,
-    });
-
     const pool_data = try std.posix.mmap(
         null,
         pool_size,
@@ -196,22 +200,44 @@ pub fn main() !void {
         0,
     );
 
-    render(width, height, pool_data[offset..][0..framebuffer_size]);
+    var buffers: Buffers = undefined;
+    for (0..buffers.len) |i| {
+        const offset: i32 = @intCast(framebuffer_size * i);
+        buffers[i] = try wl_shm_pool.request(.create_buffer, .{
+            .offset = wp.Int.from(offset),
+            .width = wp.Int.from(width),
+            .height = wp.Int.from(height),
+            .stride = wp.Int.from(stride),
+            .format = wp.wl_shm.Enum.Format.argb8888,
+        });
+    }
 
-    try wl_surface.request(.attach, .{
-        .buffer = wl_buffer.object,
-        .x = wp.Int.from(0),
-        .y = wp.Int.from(0),
-    });
-    try wl_surface.request(.damage, .{
-        .x = wp.Int.from(0),
-        .y = wp.Int.from(0),
-        .width = wp.Int.from(0),
-        .height = wp.Int.from(0),
-    });
-    try wl_surface.request(.commit, .{});
+    var gradient = Gradient{};
 
     while (true) {
+        for (0..buffers.len) |i| {
+            const offset = framebuffer_size * i;
+            gradient.render(width, height, pool_data[offset..][0..framebuffer_size]);
+            gradient.next();
+
+            const wl_buffer = buffers[i];
+
+            try wl_surface.request(.attach, .{
+                .buffer = wl_buffer.object,
+                .x = wp.Int.from(0),
+                .y = wp.Int.from(0),
+            });
+            try wl_surface.request(.damage, .{
+                .x = wp.Int.from(0),
+                .y = wp.Int.from(0),
+                .width = wp.Int.from(width),
+                .height = wp.Int.from(height),
+            });
+            try wl_surface.request(.commit, .{});
+
+            std.time.sleep(1000000000);
+        }
+
         try client.dispatchMessage();
     }
 }
