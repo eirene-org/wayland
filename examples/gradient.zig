@@ -59,42 +59,77 @@ fn onXdgSurfaceConfigureEvent(payload: wp.xdg_surface.Event.Configure, optional_
 }
 
 const Gradient = struct {
-    step_colors: [2][3]u8 = .{
-        .{ 0x00, 0x00, 0xFF },
-        .{ 0xFF, 0x00, 0x00 },
+    // A vector with the center in the middle of the 256x256x256 cube
+    step_colors: [2][3]f32 = .{
+        .{ 0xFF / 2, 0xFF / 2, 0xFF / 8 },
+        .{ 0xFF / 2, 0xFF / 2, 0xFF - 0xFF / 8 },
     },
 
     const Self = @This();
 
-    fn translate(x: *f32, y: *f32, delta_x: f32, delta_y: f32) void {
-        x.* += delta_x;
-        y.* += delta_y;
+    fn flipSign(slice: []f32) void {
+        for (slice) |*e| {
+            e.* = -e.*;
+        }
     }
 
-    fn rotate(x: *f32, y: *f32, angle: f32) void {
-        const x_o = x.*;
-        const y_o = y.*;
-
-        const radians = std.math.degreesToRadians(angle);
-
-        x.* = x_o * @cos(radians) - y_o * @sin(radians);
-        y.* = x_o * @sin(radians) + y_o * @cos(radians);
+    fn translate(point: []f32, delta: []const f32) void {
+        std.debug.assert(point.len == delta.len);
+        for (0..point.len) |i| {
+            point[i] += delta[i];
+        }
     }
 
-    fn lerp(self: *const Self, colors: *[3]u8, k: f32) void {
+    fn rotate2d(point: *[2]f32, theta_deg: f32) void {
+        const p: [2]f32 = point.*;
+
+        const theta_rad = std.math.degreesToRadians(theta_deg);
+
+        point[0] = p[0] * @cos(theta_rad) - p[1] * @sin(theta_rad);
+        point[1] = p[0] * @sin(theta_rad) + p[1] * @cos(theta_rad);
+    }
+
+    fn rotate3d(point: *[3]f32, alpha_deg: f32, beta_deg: f32, gamma_deg: f32) void {
+        const p: [3]f32 = point.*;
+
+        const alpha_rad = std.math.degreesToRadians(alpha_deg);
+        const beta_rad = std.math.degreesToRadians(beta_deg);
+        const gamma_rad = std.math.degreesToRadians(gamma_deg);
+
+        point[0] =
+            p[0] * @cos(beta_rad) * @cos(gamma_rad) +
+            p[1] * (-@sin(gamma_rad) * @cos(beta_rad)) +
+            p[2] * @sin(beta_rad);
+
+        point[1] =
+            p[0] * (@sin(alpha_rad) * @sin(beta_rad) * @cos(gamma_rad) + @sin(gamma_rad) * @cos(alpha_rad)) +
+            p[1] * (-@sin(alpha_rad) * @sin(beta_rad) * @sin(gamma_rad) + @cos(alpha_rad) * @cos(gamma_rad)) +
+            p[2] * (-@sin(alpha_rad) * @cos(beta_rad));
+
+        point[2] =
+            p[0] * (@sin(alpha_rad) * @sin(gamma_rad) - @sin(beta_rad) * @cos(alpha_rad) * @cos(gamma_rad)) +
+            p[1] * (@sin(alpha_rad) * @cos(gamma_rad) + @sin(beta_rad) * @sin(gamma_rad) * @cos(alpha_rad)) +
+            p[2] * @cos(alpha_rad) * @cos(beta_rad);
+    }
+
+    fn lerp(colors: *[3]u8, step_colors: *const [2][3]f32, k: f32) void {
         for (0..colors.len) |j| {
-            const a: f32 = @floatFromInt(self.step_colors[0][j]);
-            const b: f32 = @floatFromInt(self.step_colors[1][j]);
+            const a: f32 = step_colors[0][j];
+            const b: f32 = step_colors[1][j];
             const interpolated_color = a + (b - a) * k;
             colors[j] = @intFromFloat(interpolated_color);
         }
     }
 
     fn next(self: *Self) void {
+        var delta: [3]f32 = .{-0xFF / 2} ** 3;
+
         for (&self.step_colors) |*step_color| {
-            const color = step_color[0];
-            step_color[0] = ~color;
-            step_color[2] = color;
+            translate(step_color, &delta);
+            rotate3d(step_color, 1, 1, 1);
+            flipSign(&delta);
+            translate(step_color, &delta);
+            flipSign(&delta);
         }
     }
 
@@ -102,8 +137,7 @@ const Gradient = struct {
         const width_f32: f32 = @floatFromInt(width);
         const height_f32: f32 = @floatFromInt(height);
 
-        const mx = width_f32 / 2;
-        const my = height_f32 / 2;
+        var delta: [2]f32 = .{ -width_f32 / 2, -height_f32 / 2 };
 
         for (0..width) |x| {
             for (0..height) |y| {
@@ -111,15 +145,16 @@ const Gradient = struct {
                 const pixel = data[i..][0..4];
                 const colors = pixel[0..3];
 
-                var x_f32: f32 = @floatFromInt(x);
-                var y_f32: f32 = @floatFromInt(y);
+                var p: [2]f32 = .{ @floatFromInt(x), @floatFromInt(y) };
 
-                translate(&x_f32, &y_f32, -mx, -my);
-                rotate(&x_f32, &y_f32, 45);
-                translate(&x_f32, &y_f32, mx, my);
+                translate(&p, &delta);
+                rotate2d(&p, 45);
+                flipSign(&delta);
+                translate(&p, &delta);
+                flipSign(&delta);
 
-                const k = std.math.clamp(x_f32 / width, 0, 1);
-                self.lerp(colors, k);
+                const k = std.math.clamp(p[0] / width, 0, 1);
+                lerp(colors, &self.step_colors, k);
 
                 pixel[3] = 0xFF;
             }
@@ -235,7 +270,7 @@ pub fn main() !void {
             });
             try wl_surface.request(.commit, .{});
 
-            std.time.sleep(1000000000);
+            std.time.sleep(10000000);
         }
 
         try client.dispatchMessage();
