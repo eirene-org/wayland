@@ -221,6 +221,9 @@ const Surface = struct {
     wl_surface: wc.Proxy(wp.wl_surface),
     wl_shm_pool: wc.Proxy(wp.wl_shm_pool),
 
+    pool_fd: std.posix.fd_t,
+    pool_data: []align(std.mem.page_size) u8,
+
     buffers: Buffers,
     gradient: Gradient,
 
@@ -244,6 +247,15 @@ const Surface = struct {
         try self.prepareBuffers(&options);
 
         return self;
+    }
+
+    fn deinit(self: *Self) void {
+        self.wl_shm_pool.request(.destroy, .{}) catch {
+            std.log.err("failed to destroy the pool", .{});
+        };
+        std.posix.munmap(self.pool_data);
+        std.posix.close(self.pool_fd);
+        self.* = undefined;
     }
 
     const ConfigureUserdata = struct {
@@ -323,6 +335,8 @@ const Surface = struct {
         const gradient = Gradient.init();
 
         self.wl_shm_pool = wl_shm_pool;
+        self.pool_fd = pool_fd;
+        self.pool_data = pool_data;
         self.buffers = buffers;
         self.gradient = gradient;
     }
@@ -395,6 +409,7 @@ pub fn main() !void {
     try globals.setUpListeners();
 
     var surface = try Surface.init(256, 256, .{ .client = &client, .globals = &globals });
+    defer surface.deinit();
     try surface.setUpListeners();
 
     try SignalHandler.init();

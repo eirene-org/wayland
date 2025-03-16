@@ -98,6 +98,7 @@ pub const wl_shm_pool = struct {
 
     pub const Request = union(enum(wp.Opcode)) {
         create_buffer: Request.CreateBuffer,
+        destroy: Request.Destroy,
 
         pub const CreateBuffer = struct {
             id: wp.Object = .null,
@@ -109,6 +110,11 @@ pub const wl_shm_pool = struct {
 
             pub const NewIDFieldName: ?[]const u8 = "id";
             pub const ResultInterface: ?type = wl_buffer;
+        };
+
+        pub const Destroy = struct {
+            pub const NewIDFieldName: ?[]const u8 = null;
+            pub const ResultInterface: ?type = null;
         };
     };
 };
