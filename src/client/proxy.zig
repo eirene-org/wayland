@@ -57,31 +57,45 @@ pub fn Proxy(I: type) type {
             }
         }
 
+        fn Callback(opcode: std.meta.Tag(I.Event)) type {
+            const Payload = std.meta.TagPayload(I.Event, opcode);
+
+            return struct {
+                const T = *const fn (payload: std.meta.TagPayload(I.Event, opcode), userdata: ?*anyopaque) void;
+
+                fn wrap(comptime callback: T) wl.EventListenerCallback {
+                    const Wrapper = struct {
+                        fn wrappedCallback(buffer: []const u8, optional_userdata: ?*anyopaque) void {
+                            const Message = wp.Message(Payload);
+                            const message = Message.deserialize(buffer);
+
+                            callback(message.payload, optional_userdata);
+                        }
+                    };
+                    return Wrapper.wrappedCallback;
+                }
+            };
+        }
+
         pub fn listen(
             self: *const Self,
             comptime opcode: std.meta.Tag(I.Event),
-            comptime callback: *const fn (payload: std.meta.TagPayload(I.Event, opcode), userdata: ?*anyopaque) void,
-            userdata: ?*anyopaque,
+            comptime optional_callback: ?Callback(opcode).T,
+            optional_userdata: ?*anyopaque,
         ) !void {
-            const Payload = std.meta.TagPayload(I.Event, opcode);
-
             const eventID = wl.EventID{
                 .object = self.object,
                 .opcode = @intFromEnum(opcode),
             };
 
-            const Wrapper = struct {
-                fn wrappedCallback(buffer: []const u8, _userdata: ?*anyopaque) void {
-                    const Message = wp.Message(Payload);
-                    const message = Message.deserialize(buffer);
-
-                    callback(message.payload, _userdata);
-                }
+            const callback = optional_callback orelse {
+                self.client.unsetEventListener(eventID);
+                return;
             };
 
             const eventListener = wl.EventListener{
-                .callback = Wrapper.wrappedCallback,
-                .userdata = userdata,
+                .callback = Callback(opcode).wrap(callback),
+                .optional_userdata = optional_userdata,
             };
             try self.client.setEventListener(eventID, eventListener);
         }

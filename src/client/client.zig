@@ -9,14 +9,16 @@ pub const EventID = struct {
     opcode: wp.Opcode,
 };
 
+pub const EventListenerCallback = *const fn (buffer: []const u8, userdata: ?*anyopaque) void;
+
 pub const EventListener = struct {
-    callback: *const fn (buffer: []const u8, userdata: ?*anyopaque) void,
-    userdata: ?*anyopaque,
+    callback: EventListenerCallback,
+    optional_userdata: ?*anyopaque,
 
     const Self = @This();
 
     fn call(self: *const Self, buffer: []const u8) void {
-        self.callback(buffer, self.userdata);
+        self.callback(buffer, self.optional_userdata);
     }
 };
 
