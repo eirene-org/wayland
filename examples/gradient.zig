@@ -4,68 +4,96 @@ const wc = @import("wayland-client");
 const wp = @import("wayland-protocols");
 
 const Globals = struct {
-    wl_registry: wc.Proxy(wp.wl_registry),
+    wl_shm: wc.Proxy(wp.wl_shm),
+    wl_compositor: wc.Proxy(wp.wl_compositor),
+    xdg_wm_base: wc.Proxy(wp.xdg_wm_base),
 
-    wl_shm: ?wc.Proxy(wp.wl_shm) = null,
-    wl_compositor: ?wc.Proxy(wp.wl_compositor) = null,
-    xdg_wm_base: ?wc.Proxy(wp.xdg_wm_base) = null,
-};
+    const Self = @This();
 
-fn onWlRegistryGlobalEvent(payload: wp.wl_registry.Event.Global, userdata: ?*anyopaque) void {
-    const globals: *Globals = @alignCast(@ptrCast(userdata));
+    const InitUserdata = struct {
+        wl_registry: wc.Proxy(wp.wl_registry),
+        globals: *Self,
 
-    inline for (@typeInfo(Globals).Struct.fields[1..]) |field| blk: {
-        if (std.mem.eql(u8, field.name, payload.interface.value)) {
-            const Interface = @typeInfo(field.type).Optional.child.Interface;
+        fn onWlRegistryGlobalEvent(payload: wp.wl_registry.Event.Global, optional_userdata: ?*anyopaque) void {
+            const userdata: *@This() = @alignCast(@ptrCast(optional_userdata));
 
-            const newID = globals.wl_registry.client.newID(Interface);
+            inline for (@typeInfo(Globals).Struct.fields) |field| blk: {
+                if (std.mem.eql(u8, field.name, payload.interface.value)) {
+                    const Interface = field.type.Interface;
 
-            globals.wl_registry.request(.bind, .{
-                .name = payload.name,
-                .id = newID,
-            }) catch break :blk;
+                    const newID = userdata.wl_registry.client.newID(Interface);
 
-            @field(globals, field.name) = .{
-                .client = globals.wl_registry.client,
-                .object = newID.object,
-            };
+                    userdata.wl_registry.request(.bind, .{
+                        .name = payload.name,
+                        .id = newID,
+                    }) catch break :blk;
+
+                    @field(userdata.globals, field.name) = .{
+                        .client = userdata.wl_registry.client,
+                        .object = newID.object,
+                    };
+                }
+            }
         }
+
+        fn onWlCallbackDoneEvent(payload: wp.wl_callback.Event.Done, userdata: ?*anyopaque) void {
+            _ = payload;
+
+            const registration_done: *bool = @ptrCast(userdata.?);
+            registration_done.* = true;
+        }
+    };
+
+    fn init(client: *wc.Client) !Self {
+        var self: Self = undefined;
+
+        const wl_display = try client.connect();
+
+        const wl_registry = try wl_display.request(.get_registry, .{});
+        const wl_callback = try wl_display.request(.sync, .{});
+
+        var userdata = InitUserdata{ .wl_registry = wl_registry, .globals = &self };
+        try wl_registry.listen(.global, InitUserdata.onWlRegistryGlobalEvent, &userdata);
+
+        var registered = false;
+        try wl_callback.listen(.done, InitUserdata.onWlCallbackDoneEvent, &registered);
+
+        while (!registered) {
+            try client.dispatchMessage();
+        }
+
+        try wl_registry.listen(.global, null, null);
+
+        return self;
     }
-}
 
-fn onWlCallbackDoneEvent(payload: wp.wl_callback.Event.Done, userdata: ?*anyopaque) void {
-    _ = payload;
+    const Listeners = struct {
+        fn onXdgWmBasePingEvent(payload: wp.xdg_wm_base.Event.Ping, userdata: ?*anyopaque) void {
+            const globals: *Globals = @alignCast(@ptrCast(userdata.?));
 
-    const registration_done: *bool = @ptrCast(userdata.?);
-    registration_done.* = true;
-}
+            globals.xdg_wm_base.request(.pong, .{ .serial = payload.serial }) catch {};
+        }
+    };
 
-fn onXdgWmBasePingEvent(payload: wp.xdg_wm_base.Event.Ping, userdata: ?*anyopaque) void {
-    const globals: *Globals = @alignCast(@ptrCast(userdata.?));
-
-    globals.xdg_wm_base.?.request(.pong, .{ .serial = payload.serial }) catch {};
-}
-
-const XdgSurfaceConfigureEventUserdata = struct {
-    xdg_surface: *const wc.Proxy(wp.xdg_surface),
-    configured: bool = false,
+    fn setUpListeners(self: *const Self) !void {
+        try self.xdg_wm_base.listen(.ping, Listeners.onXdgWmBasePingEvent, @constCast(self));
+    }
 };
-
-fn onXdgSurfaceConfigureEvent(payload: wp.xdg_surface.Event.Configure, optional_userdata: ?*anyopaque) void {
-    const userdata: *XdgSurfaceConfigureEventUserdata = @alignCast(@ptrCast(optional_userdata.?));
-
-    userdata.xdg_surface.request(.ack_configure, .{ .serial = payload.serial }) catch {};
-    userdata.configured = true;
-}
 
 const Gradient = struct {
     // A vector with the center in the middle of the 256x256x256 cube
-    step_colors: [2][3]f32 = .{
-        .{ 0xFF / 2, 0xFF / 2, 0xFF / 8 },
-        .{ 0xFF / 2, 0xFF / 2, 0xFF - 0xFF / 8 },
-    },
+    step_colors: [2][3]f32,
 
     const Self = @This();
+
+    fn init() Self {
+        return .{
+            .step_colors = .{
+                .{ 0xFF / 2, 0xFF / 2, 0xFF / 8 },
+                .{ 0xFF / 2, 0xFF / 2, 0xFF - 0xFF / 8 },
+            },
+        };
+    }
 
     fn flipSign(slice: []f32) void {
         for (slice) |*e| {
@@ -133,15 +161,20 @@ const Gradient = struct {
         }
     }
 
-    fn render(self: *const Self, width: comptime_int, height: comptime_int, data: *[width * height * 4]u8) void {
+    fn render(self: *const Self, width: i32, height: i32, data: []u8) void {
+        std.debug.assert(data.len == width * height * 4);
+
+        const width_usize: usize = @intCast(width);
+        const height_usize: usize = @intCast(height);
+
         const width_f32: f32 = @floatFromInt(width);
         const height_f32: f32 = @floatFromInt(height);
 
         var delta: [2]f32 = .{ -width_f32 / 2, -height_f32 / 2 };
 
-        for (0..width) |x| {
-            for (0..height) |y| {
-                const i = (x + y * width) * 4;
+        for (0..width_usize) |x| {
+            for (0..height_usize) |y| {
+                const i = (x + y * width_usize) * 4;
                 const pixel = data[i..][0..4];
                 const colors = pixel[0..3];
 
@@ -153,7 +186,7 @@ const Gradient = struct {
                 translate(&p, &delta);
                 flipSign(&delta);
 
-                const k = std.math.clamp(p[0] / width, 0, 1);
+                const k = std.math.clamp(p[0] / width_f32, 0, 1);
                 lerp(colors, &self.step_colors, k);
 
                 pixel[3] = 0xFF;
@@ -162,7 +195,170 @@ const Gradient = struct {
     }
 };
 
-const Buffers = [2]wc.Proxy(wp.wl_buffer);
+const Buffer = struct {
+    handle: wc.Proxy(wp.wl_buffer),
+    data: []u8,
+};
+
+const Buffers = struct {
+    array: [2]Buffer = undefined,
+    active: u1 = 0,
+
+    const Self = @This();
+
+    fn next(self: *Self) *Buffer {
+        const buffer = &self.array[self.active];
+        self.active = ~self.active;
+        return buffer;
+    }
+};
+
+const Surface = struct {
+    width: i32,
+    height: i32,
+
+    xdg_surface: wc.Proxy(wp.xdg_surface),
+    wl_surface: wc.Proxy(wp.wl_surface),
+    wl_shm_pool: wc.Proxy(wp.wl_shm_pool),
+
+    buffers: Buffers,
+    gradient: Gradient,
+
+    const Self = @This();
+
+    pub const pixel_size = 4;
+
+    pub const InitOptions = struct {
+        client: *wc.Client,
+        globals: *const Globals,
+    };
+
+    fn init(width: i32, height: i32, options: InitOptions) !Self {
+        std.debug.assert(width >= 0 and height >= 0);
+
+        var self: Self = undefined;
+        self.width = width;
+        self.height = height;
+
+        try self.configure(&options);
+        try self.prepareBuffers(&options);
+
+        return self;
+    }
+
+    const ConfigureUserdata = struct {
+        xdg_surface: *const wc.Proxy(wp.xdg_surface),
+        configured: bool = false,
+
+        fn onXdgSurfaceConfigureEvent(payload: wp.xdg_surface.Event.Configure, optional_userdata: ?*anyopaque) void {
+            const userdata: *@This() = @alignCast(@ptrCast(optional_userdata.?));
+
+            userdata.xdg_surface.request(.ack_configure, .{ .serial = payload.serial }) catch {};
+            userdata.configured = true;
+        }
+    };
+
+    fn configure(self: *Self, options: *const InitOptions) !void {
+        const wl_surface = try options.globals.wl_compositor.request(.create_surface, .{});
+        const xdg_surface = try options.globals.xdg_wm_base.request(
+            .get_xdg_surface,
+            .{ .surface = wl_surface.object },
+        );
+        _ = try xdg_surface.request(.get_toplevel, .{});
+
+        try wl_surface.request(.commit, .{});
+
+        var userdata = ConfigureUserdata{ .xdg_surface = &xdg_surface };
+        try xdg_surface.listen(.configure, ConfigureUserdata.onXdgSurfaceConfigureEvent, &userdata);
+
+        while (!userdata.configured) {
+            try options.client.dispatchMessage();
+        }
+
+        self.wl_surface = wl_surface;
+        self.xdg_surface = xdg_surface;
+    }
+
+    fn prepareBuffers(self: *Self, options: *const InitOptions) !void {
+        const stride = self.width * pixel_size;
+        const framebuffer_size = stride * self.height;
+        const framebuffer_size_usize: usize = @intCast(framebuffer_size);
+        const pool_size = framebuffer_size * 2;
+        const pool_size_usize: usize = @intCast(pool_size);
+
+        const pool_fd = try std.posix.memfd_create("shm_pool", 0);
+        try std.posix.ftruncate(pool_fd, pool_size_usize);
+
+        const wl_shm_pool = try options.globals.wl_shm.request(.create_pool, .{
+            .fd = wp.Fd.from(pool_fd),
+            .size = wp.Int.from(pool_size),
+        });
+
+        const pool_data = try std.posix.mmap(
+            null,
+            pool_size_usize,
+            std.posix.PROT.READ | std.posix.PROT.WRITE,
+            .{ .TYPE = .SHARED },
+            pool_fd,
+            0,
+        );
+
+        var buffers: Buffers = undefined;
+        for (0..buffers.array.len) |i| {
+            const offset_usize = framebuffer_size_usize * i;
+            const offset_i32: i32 = @intCast(offset_usize);
+            const wl_buffer = try wl_shm_pool.request(.create_buffer, .{
+                .offset = wp.Int.from(offset_i32),
+                .width = wp.Int.from(self.width),
+                .height = wp.Int.from(self.height),
+                .stride = wp.Int.from(stride),
+                .format = wp.wl_shm.Enum.Format.argb8888,
+            });
+            buffers.array[i] = .{
+                .handle = wl_buffer,
+                .data = pool_data[offset_usize..][0..framebuffer_size_usize],
+            };
+        }
+
+        const gradient = Gradient.init();
+
+        self.wl_shm_pool = wl_shm_pool;
+        self.buffers = buffers;
+        self.gradient = gradient;
+    }
+
+    const Listeners = struct {
+        fn onXdgSurfaceConfigureEvent(payload: wp.xdg_surface.Event.Configure, optional_userdata: ?*anyopaque) void {
+            const xdg_surface: *const wc.Proxy(wp.xdg_surface) = @alignCast(@ptrCast(optional_userdata.?));
+
+            xdg_surface.request(.ack_configure, .{ .serial = payload.serial }) catch {};
+        }
+    };
+
+    fn setUpListeners(self: *const Self) !void {
+        try self.xdg_surface.listen(.configure, Listeners.onXdgSurfaceConfigureEvent, @constCast(&self.xdg_surface));
+    }
+
+    fn render(self: *Self) !void {
+        const buffer = self.buffers.next();
+
+        self.gradient.render(self.width, self.height, buffer.data);
+        self.gradient.next();
+
+        try self.wl_surface.request(.attach, .{
+            .buffer = buffer.handle.object,
+            .x = wp.Int.from(0),
+            .y = wp.Int.from(0),
+        });
+        try self.wl_surface.request(.damage, .{
+            .x = wp.Int.from(0),
+            .y = wp.Int.from(0),
+            .width = wp.Int.from(self.width),
+            .height = wp.Int.from(self.height),
+        });
+        try self.wl_surface.request(.commit, .{});
+    }
+};
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -173,106 +369,15 @@ pub fn main() !void {
     var client = wc.Client.init(allocator);
     defer client.deinit();
 
-    const wl_display = try client.connect();
+    const globals = try Globals.init(&client);
+    try globals.setUpListeners();
 
-    const wl_registry = try wl_display.request(.get_registry, .{});
-    const wl_callback = try wl_display.request(.sync, .{});
-
-    var globals = Globals{ .wl_registry = wl_registry };
-    try wl_registry.listen(.global, onWlRegistryGlobalEvent, &globals);
-
-    var registration_done = false;
-    try wl_callback.listen(.done, onWlCallbackDoneEvent, &registration_done);
-
-    while (!registration_done) {
-        try client.dispatchMessage();
-    }
-
-    std.debug.print("wl_shm: {}\n", .{globals.wl_shm != null});
-    std.debug.print("wl_compositor: {}\n", .{globals.wl_compositor != null});
-    std.debug.print("xdg_wm_base: {}\n", .{globals.xdg_wm_base != null});
-
-    const wl_surface = try globals.wl_compositor.?.request(.create_surface, .{});
-    const xdg_surface = try globals.xdg_wm_base.?.request(.get_xdg_surface, .{ .surface = wl_surface.object });
-    const xdg_toplevel = try xdg_surface.request(.get_toplevel, .{});
-
-    try wl_surface.request(.commit, .{});
-
-    try globals.xdg_wm_base.?.listen(.ping, onXdgWmBasePingEvent, &globals);
-
-    var xdgSurfaceConfigureEventUserdata = XdgSurfaceConfigureEventUserdata{
-        .xdg_surface = &xdg_surface,
-    };
-    try xdg_surface.listen(.configure, onXdgSurfaceConfigureEvent, &xdgSurfaceConfigureEventUserdata);
-
-    while (!xdgSurfaceConfigureEventUserdata.configured) {
-        try client.dispatchMessage();
-    }
-
-    _ = xdg_toplevel;
-
-    const width = 256;
-    const height = width;
-    const pixel_size = 4;
-    const stride = width * pixel_size;
-    const framebuffer_size = stride * height;
-    const pool_size = framebuffer_size * 2;
-
-    const pool_fd = try std.posix.memfd_create("shm_pool", 0);
-    try std.posix.ftruncate(pool_fd, pool_size);
-
-    const wl_shm_pool = try globals.wl_shm.?.request(.create_pool, .{
-        .fd = wp.Fd.from(pool_fd),
-        .size = wp.Int.from(pool_size),
-    });
-
-    const pool_data = try std.posix.mmap(
-        null,
-        pool_size,
-        std.posix.PROT.READ | std.posix.PROT.WRITE,
-        .{ .TYPE = .SHARED },
-        pool_fd,
-        0,
-    );
-
-    var buffers: Buffers = undefined;
-    for (0..buffers.len) |i| {
-        const offset: i32 = @intCast(framebuffer_size * i);
-        buffers[i] = try wl_shm_pool.request(.create_buffer, .{
-            .offset = wp.Int.from(offset),
-            .width = wp.Int.from(width),
-            .height = wp.Int.from(height),
-            .stride = wp.Int.from(stride),
-            .format = wp.wl_shm.Enum.Format.argb8888,
-        });
-    }
-
-    var gradient = Gradient{};
+    var surface = try Surface.init(256, 256, .{ .client = &client, .globals = &globals });
+    try surface.setUpListeners();
 
     while (true) {
-        for (0..buffers.len) |i| {
-            const offset = framebuffer_size * i;
-            gradient.render(width, height, pool_data[offset..][0..framebuffer_size]);
-            gradient.next();
-
-            const wl_buffer = buffers[i];
-
-            try wl_surface.request(.attach, .{
-                .buffer = wl_buffer.object,
-                .x = wp.Int.from(0),
-                .y = wp.Int.from(0),
-            });
-            try wl_surface.request(.damage, .{
-                .x = wp.Int.from(0),
-                .y = wp.Int.from(0),
-                .width = wp.Int.from(width),
-                .height = wp.Int.from(height),
-            });
-            try wl_surface.request(.commit, .{});
-
-            std.time.sleep(10000000);
-        }
-
+        try surface.render();
         try client.dispatchMessage();
+        std.time.sleep(10_000_000);
     }
 }
