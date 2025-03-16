@@ -276,8 +276,9 @@ const Surface = struct {
             .get_xdg_surface,
             .{ .surface = wl_surface.object },
         );
-        _ = try xdg_surface.request(.get_toplevel, .{});
+        const xdg_toplevel = try xdg_surface.request(.get_toplevel, .{});
 
+        try xdg_toplevel.request(.set_title, .{ .title = wp.String.from("Gradient") });
         try wl_surface.request(.commit, .{});
 
         var userdata = ConfigureUserdata{ .xdg_surface = &xdg_surface };
