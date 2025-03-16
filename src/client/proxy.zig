@@ -97,7 +97,7 @@ pub fn Proxy(I: type) type {
         pub fn listen(
             self: *const Self,
             comptime opcode: EventTag,
-            comptime optional_callback: ?Callback(opcode).T,
+            comptime callback: Callback(opcode).T,
             optional_userdata: ?*anyopaque,
         ) !void {
             const eventID = wl.EventID{
@@ -105,16 +105,20 @@ pub fn Proxy(I: type) type {
                 .opcode = @intFromEnum(opcode),
             };
 
-            const callback = optional_callback orelse {
-                self.client.unsetEventListener(eventID);
-                return;
-            };
-
             const eventListener = wl.EventListener{
                 .callback = Callback(opcode).wrap(callback),
                 .optional_userdata = optional_userdata,
             };
             try self.client.setEventListener(eventID, eventListener);
+        }
+
+        pub fn ignore(self: *const Self, comptime opcode: EventTag) void {
+            const eventID = wl.EventID{
+                .object = self.object,
+                .opcode = @intFromEnum(opcode),
+            };
+
+            self.client.unsetEventListener(eventID);
         }
     };
 }

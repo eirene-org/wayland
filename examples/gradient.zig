@@ -62,7 +62,7 @@ const Globals = struct {
             try client.dispatchMessage();
         }
 
-        try wl_registry.listen(.global, null, null);
+        wl_registry.ignore(.global);
 
         return self;
     }
