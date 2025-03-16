@@ -360,6 +360,28 @@ const Surface = struct {
     }
 };
 
+const SignalHandler = struct {
+    var interrupted: bool = false;
+
+    const Self = @This();
+
+    fn interrupt(_: i32) callconv(.C) void {
+        interrupted = true;
+
+        const stderr = std.io.getStdErr().writer();
+        _ = stderr.write("\rintterrupted\n") catch {};
+    }
+
+    fn init() !void {
+        const act = std.posix.Sigaction{
+            .handler = .{ .handler = interrupt },
+            .mask = std.posix.empty_sigset,
+            .flags = 0,
+        };
+        try std.posix.sigaction(std.posix.SIG.INT, &act, null);
+    }
+};
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -375,7 +397,9 @@ pub fn main() !void {
     var surface = try Surface.init(256, 256, .{ .client = &client, .globals = &globals });
     try surface.setUpListeners();
 
-    while (true) {
+    try SignalHandler.init();
+
+    while (!SignalHandler.interrupted) {
         try surface.render();
         try client.dispatchMessage();
         std.time.sleep(10_000_000);
