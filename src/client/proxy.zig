@@ -13,13 +13,30 @@ pub fn Proxy(I: type) type {
 
         pub const Interface = I;
 
+        const RequestTag = std.meta.Tag(I.Request);
+        const EventTag = std.meta.Tag(I.Event);
+
+        fn RequestPayload(comptime opcode: RequestTag) type {
+            return std.meta.TagPayload(I.Request, opcode);
+        }
+
+        fn EventPayload(comptime opcode: EventTag) type {
+            return std.meta.TagPayload(I.Event, opcode);
+        }
+
+        fn RequestReturnType(comptime opcode: RequestTag) type {
+            const Payload = RequestPayload(opcode);
+            if (Payload.ResultInterface) |ResultInterface| return Proxy(ResultInterface);
+            return void;
+        }
+
         pub fn request(
             self: *const Self,
-            comptime opcode: std.meta.Tag(I.Request),
-            payload: std.meta.TagPayload(I.Request, opcode),
-        ) !RequestReturnType(I.Request, opcode) {
-            const Payload = std.meta.TagPayload(I.Request, opcode);
-            const QualifiedRequestReturnType = RequestReturnType(I.Request, opcode);
+            comptime opcode: RequestTag,
+            payload: RequestPayload(opcode),
+        ) !RequestReturnType(opcode) {
+            const Payload = RequestPayload(opcode);
+            const QualifiedRequestReturnType = RequestReturnType(opcode);
 
             var object: ?wp.Object = null;
 
@@ -57,11 +74,11 @@ pub fn Proxy(I: type) type {
             }
         }
 
-        fn Callback(opcode: std.meta.Tag(I.Event)) type {
-            const Payload = std.meta.TagPayload(I.Event, opcode);
+        fn Callback(opcode: EventTag) type {
+            const Payload = EventPayload(opcode);
 
             return struct {
-                const T = *const fn (payload: std.meta.TagPayload(I.Event, opcode), userdata: ?*anyopaque) void;
+                const T = *const fn (payload: Payload, userdata: ?*anyopaque) void;
 
                 fn wrap(comptime callback: T) wl.EventListenerCallback {
                     const Wrapper = struct {
@@ -79,7 +96,7 @@ pub fn Proxy(I: type) type {
 
         pub fn listen(
             self: *const Self,
-            comptime opcode: std.meta.Tag(I.Event),
+            comptime opcode: EventTag,
             comptime optional_callback: ?Callback(opcode).T,
             optional_userdata: ?*anyopaque,
         ) !void {
@@ -100,10 +117,4 @@ pub fn Proxy(I: type) type {
             try self.client.setEventListener(eventID, eventListener);
         }
     };
-}
-
-fn RequestReturnType(Request: type, comptime opcode: std.meta.Tag(Request)) type {
-    const Payload = std.meta.TagPayload(Request, opcode);
-    if (Payload.ResultInterface) |Interface| return Proxy(Interface);
-    return void;
 }
