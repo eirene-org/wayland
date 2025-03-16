@@ -20,7 +20,7 @@ pub const EventListener = struct {
     }
 };
 
-const EventListeners = std.AutoArrayHashMap(EventID, EventListener);
+const EventListeners = std.AutoHashMap(EventID, EventListener);
 
 pub const Client = struct {
     allocator: std.mem.Allocator,
@@ -87,6 +87,10 @@ pub const Client = struct {
         eventListener: EventListener,
     ) !void {
         try self.eventListeners.put(eventID, eventListener);
+    }
+
+    pub fn unsetEventListener(self: *Self, eventID: EventID) void {
+        _ = self.eventListeners.remove(eventID);
     }
 
     pub fn dispatchMessage(self: *Self) !void {
