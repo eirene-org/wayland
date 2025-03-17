@@ -354,11 +354,23 @@ const Surface = struct {
         try self.xdg_surface.listen(.configure, Listeners.onXdgSurfaceConfigureEvent, @constCast(&self.xdg_surface));
     }
 
+    const RenderUserdata = struct {
+        fn onWlCallbackDoneEvent(payload: wp.wl_callback.Event.Done, optional_userdata: ?*anyopaque) void {
+            _ = payload;
+
+            const self: *Self = @alignCast(@ptrCast(optional_userdata.?));
+            self.render() catch unreachable;
+        }
+    };
+
     fn render(self: *Self) !void {
         const buffer = self.buffers.next();
 
         self.gradient.render(self.width, self.height, buffer.data);
         self.gradient.next();
+
+        const wl_callback = try self.wl_surface.request(.frame, .{});
+        try wl_callback.listen(.done, RenderUserdata.onWlCallbackDoneEvent, self);
 
         try self.wl_surface.request(.attach, .{
             .buffer = buffer.handle.object,
@@ -415,9 +427,9 @@ pub fn main() !void {
 
     try SignalHandler.init();
 
+    try surface.render();
+
     while (!SignalHandler.interrupted) {
-        try surface.render();
         try client.dispatchMessage();
-        std.time.sleep(10_000_000);
     }
 }

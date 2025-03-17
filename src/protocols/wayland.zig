@@ -156,6 +156,7 @@ pub const wl_surface = struct {
     pub const Request = union(enum(wp.Opcode)) {
         attach: Request.Attach = 1,
         damage: Request.Damage,
+        frame: Request.Frame,
         commit: Request.Commit = 6,
 
         pub const Attach = struct {
@@ -175,6 +176,13 @@ pub const wl_surface = struct {
 
             pub const NewIDFieldName: ?[]const u8 = null;
             pub const ResultInterface: ?type = null;
+        };
+
+        pub const Frame = struct {
+            callback: wp.Object = .null,
+
+            pub const NewIDFieldName: ?[]const u8 = "callback";
+            pub const ResultInterface: ?type = wl_callback;
         };
 
         pub const Commit = struct {
