@@ -384,7 +384,7 @@ const SignalHandler = struct {
         interrupted = true;
 
         const stderr = std.io.getStdErr().writer();
-        _ = stderr.write("\rintterrupted\n") catch {};
+        _ = stderr.write("\rinterrupted\n") catch {};
     }
 
     fn init() !void {
